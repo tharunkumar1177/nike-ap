@@ -23,6 +23,7 @@ The protocol crate, the ADB and tethering connection paths, mouse and synthetic 
 
 - **Mode**: the tray offers "USB (ADB)" and "USB (Tethering)" as exclusive choices, matching the phone's picker. The choice is saved in `%APPDATA%\PadLink\helper.conf` next to the token. Changing it drops the current session.
 - **Connect loop** (retry every second while disconnected): in ADB mode, find `adb.exe` next to the helper, then in its `platform-tools` subfolder, then on `PATH`. Pick the first device in the `device` state, or report "unauthorized" or "no phone", run `adb forward tcp:47800 tcp:47800`, and connect to `127.0.0.1`. In tethering mode, connect to the gateway of any adapter that is up and whose description matches RNDIS, NCM, or "Remote NDIS".
+- **Socket reads**: a dedicated thread does blocking reads with no timeout and passes decoded frames to the link loop over a channel. The link loop applies its deadlines (handshake, pairing, 3 s link timeout) to that channel. Never set a receive timeout on the socket. Winsock leaves a socket whose receive timed out in an indeterminate state that can drop bytes, which broke sessions right after pairing.
 - **Mouse injection**: `SendInput` with relative moves, button down/up transitions, `MOUSEEVENTF_WHEEL`, and `MOUSEEVENTF_HWHEEL`.
 - **Pen injection**: `CreateSyntheticPointerDevice(PT_PEN)` and `InjectSyntheticPointerInput` with `POINTER_PEN_INFO`; hover, down, update, up, and leave transitions follow the Windows pointer-injection rules. The process is per-monitor DPI aware so coordinates are physical pixels.
 - **Monitor selection**: the "Pen display" submenu lists each monitor, with the primary monitor as the default. The chosen monitor's rectangle is the pen target, and its size is sent as `HostInfo`. Changing it updates the phone's aspect lock. Pen coverage across all monitors is not offered.
@@ -47,7 +48,7 @@ None
 ## Acceptance or verification criteria
 
 - [x] Unit tests: golden vectors, mouse transition translation, pen transition translation, coordinate mapping, adb output parsing, adapter matching.
-- [x] Unit tests: handshake, pairing, and input delivery against a fake phone over loopback TCP.
+- [x] Unit tests: handshake, pairing, and input delivery against a fake phone over loopback TCP, including frames sent one byte at a time across many poll intervals.
 - [ ] On a Windows PC: cursor, wheel, and pen pressure in OneNote via USB (ADB) and USB (Tethering).
 
 ## Remaining gaps and unknowns

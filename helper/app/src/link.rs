@@ -4,8 +4,9 @@ use crate::pen::Rect;
 use crate::store::Mode;
 use padlink_protocol::{encode, status, Frame, FrameDecoder, MouseFrame, PenFrame, TOKEN_LEN, VERSION};
 use std::io::{ErrorKind, Read, Write};
-use std::net::{SocketAddr, TcpStream};
+use std::net::{Shutdown, SocketAddr, TcpStream};
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
+use std::sync::mpsc::{self, Receiver, RecvTimeoutError, Sender};
 use std::sync::Mutex;
 use std::time::{Duration, Instant};
 
@@ -181,32 +182,40 @@ fn sleep_unless_stopped(shared: &Shared, d: Duration) {
     }
 }
 
-/// Socket plus stream decoder.
+/// Socket writer plus frames decoded by a dedicated blocking reader thread.
+///
+/// Windows leaves a socket in an indeterminate state (bytes may be lost) after a receive
+/// timeout, so the socket never gets a read timeout; waiting with a deadline happens on the
+/// channel instead.
 struct Conn {
     stream: TcpStream,
-    decoder: FrameDecoder,
-    buf: [u8; 1024],
+    frames: Receiver<Result<Frame, End>>,
 }
 
 impl Conn {
+    /// Starts the reader thread for `stream`.
+    fn new(stream: TcpStream) -> Result<Self, End> {
+        let reader = stream.try_clone().map_err(|e| End::Io(e.to_string()))?;
+        let (tx, frames) = mpsc::channel();
+        std::thread::Builder::new()
+            .name("padlink-reader".into())
+            .spawn(move || read_frames(reader, &tx))
+            .map_err(|e| End::Io(e.to_string()))?;
+        Ok(Self { stream, frames })
+    }
+
     /// Writes one frame.
     fn send(&mut self, frame: &Frame) -> Result<(), End> {
         self.stream.write_all(&encode(frame)).map_err(|e| End::Io(e.to_string()))
     }
 
-    /// Returns the next frame, `Ok(None)` after one poll interval without a complete frame.
+    /// Returns the next frame, `Ok(None)` after one poll interval without one.
     fn poll(&mut self) -> Result<Option<Frame>, End> {
-        if let Some(f) = self.decoder.next_frame().map_err(|e| End::Io(e.to_string()))? {
-            return Ok(Some(f));
-        }
-        match self.stream.read(&mut self.buf) {
-            Ok(0) => Err(End::Closed),
-            Ok(n) => {
-                self.decoder.push(&self.buf[..n]);
-                self.decoder.next_frame().map_err(|e| End::Io(e.to_string()))
-            }
-            Err(e) if matches!(e.kind(), ErrorKind::WouldBlock | ErrorKind::TimedOut) => Ok(None),
-            Err(e) => Err(End::Io(e.to_string())),
+        match self.frames.recv_timeout(POLL) {
+            Ok(Ok(frame)) => Ok(Some(frame)),
+            Ok(Err(end)) => Err(end),
+            Err(RecvTimeoutError::Timeout) => Ok(None),
+            Err(RecvTimeoutError::Disconnected) => Err(End::Closed),
         }
     }
 
@@ -221,6 +230,48 @@ impl Conn {
             }
             if Instant::now() >= deadline {
                 return Err(End::Timeout);
+            }
+        }
+    }
+}
+
+impl Drop for Conn {
+    /// Shuts the socket down so the reader thread's blocking read returns and the thread exits.
+    fn drop(&mut self) {
+        let _ = self.stream.shutdown(Shutdown::Both);
+    }
+}
+
+/// Reader thread body: blocking reads, decoded frames forwarded until EOF, error, or hang-up.
+fn read_frames(mut stream: TcpStream, tx: &Sender<Result<Frame, End>>) {
+    let mut decoder = FrameDecoder::new();
+    let mut buf = [0u8; 1024];
+    loop {
+        let n = match stream.read(&mut buf) {
+            Ok(0) => {
+                let _ = tx.send(Err(End::Closed));
+                return;
+            }
+            Ok(n) => n,
+            Err(e) if e.kind() == ErrorKind::Interrupted => continue,
+            Err(e) => {
+                let _ = tx.send(Err(End::Io(e.to_string())));
+                return;
+            }
+        };
+        decoder.push(&buf[..n]);
+        loop {
+            match decoder.next_frame() {
+                Ok(Some(frame)) => {
+                    if tx.send(Ok(frame)).is_err() {
+                        return;
+                    }
+                }
+                Ok(None) => break,
+                Err(e) => {
+                    let _ = tx.send(Err(End::Io(e.to_string())));
+                    return;
+                }
             }
         }
     }
@@ -248,10 +299,13 @@ fn session(
     generation: u64,
     on_pair_code: &dyn Fn(u32),
 ) -> End {
-    if stream.set_nodelay(true).is_err() || stream.set_read_timeout(Some(POLL)).is_err() {
+    if stream.set_nodelay(true).is_err() {
         return End::Io("socket setup failed".into());
     }
-    let mut conn = Conn { stream, decoder: FrameDecoder::new(), buf: [0; 1024] };
+    let mut conn = match Conn::new(stream) {
+        Ok(conn) => conn,
+        Err(end) => return end,
+    };
     match handshake(&mut conn, shared, identity, generation, on_pair_code) {
         Ok(()) => {}
         Err(end) => {
@@ -319,7 +373,7 @@ fn input_loop(conn: &mut Conn, shared: &Shared, injector: &mut dyn Injector, gen
             injector.set_target(target);
             conn.send(&host_info(&target))?;
         }
-        while let Some(frame) = conn.poll()? {
+        if let Some(frame) = conn.poll()? {
             last_rx = Instant::now();
             match frame {
                 Frame::Mouse(m) => injector.mouse(&m),
@@ -425,6 +479,43 @@ mod tests {
         assert_eq!(rec.mice.len(), 1);
         assert_eq!(rec.pens.len(), 1);
         assert_eq!(rec.targets, vec![TARGET]);
+    }
+
+    /// Writes `frame` one byte at a time with pauses longer than the poll interval.
+    fn trickle(s: &mut TcpStream, frame: &Frame) {
+        for b in encode(frame) {
+            s.write_all(&[b]).unwrap();
+            std::thread::sleep(POLL + Duration::from_millis(5));
+        }
+    }
+
+    /// Frames arriving byte by byte across many poll intervals, after a long approval wait,
+    /// are reassembled without loss and the session keeps running.
+    #[test]
+    fn slow_bytes_survive_poll_intervals() {
+        let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+        let addr = listener.local_addr().unwrap();
+        let phone = std::thread::spawn(move || {
+            let (mut s, _) = listener.accept().unwrap();
+            read_frame(&mut s);
+            trickle(&mut s, &Frame::Welcome { version: VERSION, status: status::PAIRING });
+            trickle(&mut s, &Frame::PairCode { code: 654321 });
+            std::thread::sleep(Duration::from_millis(1500));
+            trickle(&mut s, &Frame::Welcome { version: VERSION, status: status::OK });
+            assert_eq!(read_frame(&mut s), Frame::HostInfo { width: 1920, height: 1080 });
+            let m = MouseFrame { buttons: 0, dx: -300, dy: 120, wheel: 0, pan: 0 };
+            trickle(&mut s, &Frame::Mouse(m));
+            trickle(&mut s, &Frame::Mouse(m));
+            s.write_all(&encode(&Frame::Bye)).unwrap();
+        });
+        let shared = Shared::new(Mode::Tether, TARGET);
+        let identity = Identity { token: [3; TOKEN_LEN], name: "PC".into() };
+        let mut rec = Recorder::default();
+        let end = session(TcpStream::connect(addr).unwrap(), &shared, &identity, &mut rec, 0, &|_| {});
+        phone.join().unwrap();
+        assert!(matches!(end, End::Closed), "{end:?}");
+        assert_eq!(rec.mice.len(), 2);
+        assert_eq!(rec.mice[1].dx, -300);
     }
 
     /// A rejected helper ends with `Rejected`.
