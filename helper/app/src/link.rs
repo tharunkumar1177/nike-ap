@@ -1,0 +1,465 @@
+//! link.rs: connects to the phone over adb or tethering, runs the handshake and keepalive, and feeds the injector.
+
+use crate::pen::Rect;
+use crate::store::Mode;
+use padlink_protocol::{encode, status, Frame, FrameDecoder, MouseFrame, PenFrame, TOKEN_LEN, VERSION};
+use std::io::{ErrorKind, Read, Write};
+use std::net::{SocketAddr, TcpStream};
+use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
+use std::sync::Mutex;
+use std::time::{Duration, Instant};
+
+const CONNECT_TIMEOUT: Duration = Duration::from_secs(2);
+const HANDSHAKE_TIMEOUT: Duration = Duration::from_secs(3);
+const PAIRING_TIMEOUT: Duration = Duration::from_secs(90);
+const PING_INTERVAL: Duration = Duration::from_secs(1);
+const LINK_TIMEOUT: Duration = Duration::from_secs(3);
+const POLL: Duration = Duration::from_millis(20);
+const RETRY_DELAY: Duration = Duration::from_secs(1);
+
+/// Receives decoded input; implemented with SendInput and a synthetic pen on Windows.
+pub trait Injector {
+    /// Injects one mouse frame.
+    fn mouse(&mut self, frame: &MouseFrame);
+    /// Injects one pen frame onto the target monitor.
+    fn pen(&mut self, frame: &PenFrame);
+    /// Releases held buttons and lifts the pen.
+    fn release_all(&mut self);
+    /// Changes the pen target monitor.
+    fn set_target(&mut self, rect: Rect);
+}
+
+/// What the tray shows.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum Status {
+    /// Looking for the phone; the text says what is missing.
+    Searching(String),
+    /// Waiting for the user to approve this computer on the phone.
+    Pairing(u32),
+    /// Delivering input.
+    Connected,
+    /// The phone refused this helper.
+    Rejected,
+    /// Phone and helper speak different protocol versions.
+    VersionMismatch,
+}
+
+/// State shared between the tray thread and the link thread.
+pub struct Shared {
+    /// Selected USB path.
+    pub mode: Mutex<Mode>,
+    /// Pen target monitor rectangle and size reported to the phone.
+    pub target: Mutex<Rect>,
+    /// Latest status for the tray.
+    pub status: Mutex<Status>,
+    /// Bumped when the mode changes so the link reconnects.
+    pub mode_generation: AtomicU64,
+    /// Bumped when the target monitor changes.
+    pub target_generation: AtomicU64,
+    /// Set when the helper exits.
+    pub stop: AtomicBool,
+}
+
+impl Shared {
+    /// Creates shared state for `mode` and the initial pen target.
+    pub fn new(mode: Mode, target: Rect) -> Self {
+        Self {
+            mode: Mutex::new(mode),
+            target: Mutex::new(target),
+            status: Mutex::new(Status::Searching(String::new())),
+            mode_generation: AtomicU64::new(0),
+            target_generation: AtomicU64::new(0),
+            stop: AtomicBool::new(false),
+        }
+    }
+
+    /// Publishes a status.
+    fn set_status(&self, s: Status) {
+        *self.status.lock().unwrap_or_else(|e| e.into_inner()) = s;
+    }
+
+    /// Current mode.
+    fn mode(&self) -> Mode {
+        *self.mode.lock().unwrap_or_else(|e| e.into_inner())
+    }
+
+    /// Current pen target.
+    fn target(&self) -> Rect {
+        *self.target.lock().unwrap_or_else(|e| e.into_inner())
+    }
+}
+
+/// Identity sent in Hello.
+pub struct Identity {
+    /// Persistent helper token.
+    pub token: [u8; TOKEN_LEN],
+    /// Computer name shown on the phone.
+    pub name: String,
+}
+
+/// Why a session ended.
+#[derive(Debug)]
+enum End {
+    /// Stop requested or mode changed.
+    Local,
+    /// Phone said Bye or closed the socket.
+    Closed,
+    /// Nothing received within the link timeout.
+    Timeout,
+    /// Phone refused this helper.
+    Rejected,
+    /// Version mismatch.
+    Version,
+    /// Socket or framing error.
+    Io(String),
+}
+
+/// Resolves where to connect for `mode`.
+fn endpoint(mode: Mode) -> Result<SocketAddr, String> {
+    match mode {
+        Mode::Adb => crate::adb::prepare_forward().map(|(addr, _)| addr).map_err(|e| e.to_string()),
+        Mode::Tether => tether_endpoint(),
+    }
+}
+
+/// Tethering endpoint (Windows adapter lookup).
+#[cfg(windows)]
+fn tether_endpoint() -> Result<SocketAddr, String> {
+    crate::tether::gateway().map_err(|e| e.to_string())
+}
+
+/// Tethering endpoint on platforms without adapter lookup.
+#[cfg(not(windows))]
+fn tether_endpoint() -> Result<SocketAddr, String> {
+    Err(crate::tether::TetherError::NoAdapter.to_string())
+}
+
+/// Link thread body: connect, run a session, release input, retry, until `shared.stop`.
+pub fn run(shared: &Shared, identity: &Identity, injector: &mut dyn Injector, on_pair_code: &dyn Fn(u32)) {
+    while !shared.stop.load(Ordering::Relaxed) {
+        let mode = shared.mode();
+        let generation = shared.mode_generation.load(Ordering::Relaxed);
+        let addr = match endpoint(mode) {
+            Ok(a) => a,
+            Err(reason) => {
+                shared.set_status(Status::Searching(reason));
+                sleep_unless_stopped(shared, RETRY_DELAY * 2);
+                continue;
+            }
+        };
+        let stream = match TcpStream::connect_timeout(&addr, CONNECT_TIMEOUT) {
+            Ok(s) => s,
+            Err(_) => {
+                shared.set_status(Status::Searching("start PadLink on the phone and pick this USB mode".into()));
+                sleep_unless_stopped(shared, RETRY_DELAY);
+                continue;
+            }
+        };
+        let end = session(stream, shared, identity, injector, generation, on_pair_code);
+        injector.release_all();
+        match &end {
+            End::Rejected => shared.set_status(Status::Rejected),
+            End::Version => shared.set_status(Status::VersionMismatch),
+            End::Local => {}
+            End::Closed | End::Timeout => {
+                shared.set_status(Status::Searching("connection lost; reconnecting".into()));
+            }
+            End::Io(msg) => shared.set_status(Status::Searching(format!("connection error ({msg}); reconnecting"))),
+        }
+        if !matches!(end, End::Local) {
+            let delay = if matches!(end, End::Rejected | End::Version) { RETRY_DELAY * 5 } else { RETRY_DELAY };
+            sleep_unless_stopped(shared, delay);
+        }
+    }
+}
+
+/// Sleeps up to `d`, waking early on stop.
+fn sleep_unless_stopped(shared: &Shared, d: Duration) {
+    let until = Instant::now() + d;
+    while !shared.stop.load(Ordering::Relaxed) && Instant::now() < until {
+        std::thread::sleep(Duration::from_millis(50));
+    }
+}
+
+/// Socket plus stream decoder.
+struct Conn {
+    stream: TcpStream,
+    decoder: FrameDecoder,
+    buf: [u8; 1024],
+}
+
+impl Conn {
+    /// Writes one frame.
+    fn send(&mut self, frame: &Frame) -> Result<(), End> {
+        self.stream.write_all(&encode(frame)).map_err(|e| End::Io(e.to_string()))
+    }
+
+    /// Returns the next frame, `Ok(None)` after one poll interval without a complete frame.
+    fn poll(&mut self) -> Result<Option<Frame>, End> {
+        if let Some(f) = self.decoder.next_frame().map_err(|e| End::Io(e.to_string()))? {
+            return Ok(Some(f));
+        }
+        match self.stream.read(&mut self.buf) {
+            Ok(0) => Err(End::Closed),
+            Ok(n) => {
+                self.decoder.push(&self.buf[..n]);
+                self.decoder.next_frame().map_err(|e| End::Io(e.to_string()))
+            }
+            Err(e) if matches!(e.kind(), ErrorKind::WouldBlock | ErrorKind::TimedOut) => Ok(None),
+            Err(e) => Err(End::Io(e.to_string())),
+        }
+    }
+
+    /// Waits for a frame until `deadline`, aborting on stop or mode change.
+    fn wait(&mut self, deadline: Instant, shared: &Shared, generation: u64) -> Result<Frame, End> {
+        loop {
+            if local_end(shared, generation) {
+                return Err(End::Local);
+            }
+            if let Some(f) = self.poll()? {
+                return Ok(f);
+            }
+            if Instant::now() >= deadline {
+                return Err(End::Timeout);
+            }
+        }
+    }
+}
+
+/// True when the helper is stopping or the user switched modes.
+fn local_end(shared: &Shared, generation: u64) -> bool {
+    shared.stop.load(Ordering::Relaxed) || shared.mode_generation.load(Ordering::Relaxed) != generation
+}
+
+/// HostInfo for a target monitor.
+fn host_info(rect: &Rect) -> Frame {
+    Frame::HostInfo {
+        width: rect.width().clamp(0, i32::from(u16::MAX)) as u16,
+        height: rect.height().clamp(0, i32::from(u16::MAX)) as u16,
+    }
+}
+
+/// One connection: Hello, Welcome (with optional pairing), HostInfo, then the input loop.
+fn session(
+    stream: TcpStream,
+    shared: &Shared,
+    identity: &Identity,
+    injector: &mut dyn Injector,
+    generation: u64,
+    on_pair_code: &dyn Fn(u32),
+) -> End {
+    if stream.set_nodelay(true).is_err() || stream.set_read_timeout(Some(POLL)).is_err() {
+        return End::Io("socket setup failed".into());
+    }
+    let mut conn = Conn { stream, decoder: FrameDecoder::new(), buf: [0; 1024] };
+    match handshake(&mut conn, shared, identity, generation, on_pair_code) {
+        Ok(()) => {}
+        Err(end) => {
+            if matches!(end, End::Local) {
+                let _ = conn.send(&Frame::Bye);
+            }
+            return end;
+        }
+    }
+    shared.set_status(Status::Connected);
+    let end = match input_loop(&mut conn, shared, injector, generation) {
+        Ok(()) => End::Closed,
+        Err(end) => end,
+    };
+    if matches!(end, End::Local) {
+        let _ = conn.send(&Frame::Bye);
+    }
+    end
+}
+
+/// Sends Hello and waits for an accepted Welcome, handling tethering approval.
+fn handshake(
+    conn: &mut Conn,
+    shared: &Shared,
+    identity: &Identity,
+    generation: u64,
+    on_pair_code: &dyn Fn(u32),
+) -> Result<(), End> {
+    conn.send(&Frame::Hello { version: VERSION, token: identity.token, name: identity.name.clone() })?;
+    let mut deadline = Instant::now() + HANDSHAKE_TIMEOUT;
+    loop {
+        match conn.wait(deadline, shared, generation)? {
+            Frame::Welcome { status: status::OK, .. } => return Ok(()),
+            Frame::Welcome { status: status::PAIRING, .. } => deadline = Instant::now() + PAIRING_TIMEOUT,
+            Frame::Welcome { status: status::VERSION_MISMATCH, .. } => return Err(End::Version),
+            Frame::Welcome { .. } => return Err(End::Rejected),
+            Frame::PairCode { code } => {
+                shared.set_status(Status::Pairing(code));
+                on_pair_code(code);
+            }
+            Frame::Bye => return Err(End::Closed),
+            _ => {}
+        }
+    }
+}
+
+/// Receives input until the link ends; always returns `Err` with the reason.
+fn input_loop(conn: &mut Conn, shared: &Shared, injector: &mut dyn Injector, generation: u64) -> Result<(), End> {
+    let mut target_generation = shared.target_generation.load(Ordering::Relaxed);
+    let target = shared.target();
+    injector.set_target(target);
+    conn.send(&host_info(&target))?;
+    let mut last_rx = Instant::now();
+    let mut last_ping = Instant::now();
+    let mut nonce: u32 = 0;
+    loop {
+        if local_end(shared, generation) {
+            return Err(End::Local);
+        }
+        let current = shared.target_generation.load(Ordering::Relaxed);
+        if current != target_generation {
+            target_generation = current;
+            let target = shared.target();
+            injector.release_all();
+            injector.set_target(target);
+            conn.send(&host_info(&target))?;
+        }
+        while let Some(frame) = conn.poll()? {
+            last_rx = Instant::now();
+            match frame {
+                Frame::Mouse(m) => injector.mouse(&m),
+                Frame::Pen(p) => injector.pen(&p),
+                Frame::Ping { nonce } => conn.send(&Frame::Pong { nonce })?,
+                Frame::Bye => return Err(End::Closed),
+                _ => {}
+            }
+        }
+        if last_rx.elapsed() > LINK_TIMEOUT {
+            return Err(End::Timeout);
+        }
+        if last_ping.elapsed() >= PING_INTERVAL {
+            last_ping = Instant::now();
+            nonce = nonce.wrapping_add(1);
+            conn.send(&Frame::Ping { nonce })?;
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::net::TcpListener;
+    use std::sync::Arc;
+
+    /// Injector that records calls.
+    #[derive(Default)]
+    struct Recorder {
+        mice: Vec<MouseFrame>,
+        pens: Vec<PenFrame>,
+        releases: usize,
+        targets: Vec<Rect>,
+    }
+
+    impl Injector for Recorder {
+        /// Records a mouse frame.
+        fn mouse(&mut self, frame: &MouseFrame) {
+            self.mice.push(*frame);
+        }
+        /// Records a pen frame.
+        fn pen(&mut self, frame: &PenFrame) {
+            self.pens.push(*frame);
+        }
+        /// Counts releases.
+        fn release_all(&mut self) {
+            self.releases += 1;
+        }
+        /// Records a target change.
+        fn set_target(&mut self, rect: Rect) {
+            self.targets.push(rect);
+        }
+    }
+
+    const TARGET: Rect = Rect { left: 0, top: 0, right: 1920, bottom: 1080 };
+
+    /// Reads one frame from a blocking test socket.
+    fn read_frame(s: &mut TcpStream) -> Frame {
+        let mut len = [0u8; 2];
+        s.read_exact(&mut len).unwrap();
+        let mut body = vec![0u8; u16::from_be_bytes(len) as usize];
+        s.read_exact(&mut body).unwrap();
+        padlink_protocol::decode_body(body[0], &body[1..]).unwrap()
+    }
+
+    /// Full session against a fake phone: pairing, HostInfo, input, Ping/Pong, and Bye.
+    #[test]
+    fn session_with_pairing_delivers_input() {
+        let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+        let addr = listener.local_addr().unwrap();
+        let phone = std::thread::spawn(move || {
+            let (mut s, _) = listener.accept().unwrap();
+            let hello = read_frame(&mut s);
+            assert!(matches!(hello, Frame::Hello { version: VERSION, ref name, .. } if name == "PC"));
+            s.write_all(&encode(&Frame::Welcome { version: VERSION, status: status::PAIRING })).unwrap();
+            s.write_all(&encode(&Frame::PairCode { code: 123456 })).unwrap();
+            std::thread::sleep(Duration::from_millis(100));
+            s.write_all(&encode(&Frame::Welcome { version: VERSION, status: status::OK })).unwrap();
+            assert_eq!(read_frame(&mut s), Frame::HostInfo { width: 1920, height: 1080 });
+            let m = MouseFrame { buttons: 1, dx: 4, dy: -2, wheel: 0, pan: 0 };
+            s.write_all(&encode(&Frame::Mouse(m))).unwrap();
+            let p = PenFrame { flags: 3, x: 10, y: 20, pressure: 30, tilt_x: 0, tilt_y: 0, twist: 0 };
+            s.write_all(&encode(&Frame::Pen(p))).unwrap();
+            s.write_all(&encode(&Frame::Ping { nonce: 77 })).unwrap();
+            loop {
+                if let Frame::Pong { nonce } = read_frame(&mut s) {
+                    assert_eq!(nonce, 77);
+                    break;
+                }
+            }
+            s.write_all(&encode(&Frame::Bye)).unwrap();
+        });
+        let shared = Shared::new(Mode::Adb, TARGET);
+        let identity = Identity { token: [7; TOKEN_LEN], name: "PC".into() };
+        let codes = Arc::new(Mutex::new(Vec::new()));
+        let codes_in = codes.clone();
+        let mut rec = Recorder::default();
+        let stream = TcpStream::connect(addr).unwrap();
+        let end = session(stream, &shared, &identity, &mut rec, 0, &move |c| codes_in.lock().unwrap().push(c));
+        phone.join().unwrap();
+        assert!(matches!(end, End::Closed), "{end:?}");
+        assert_eq!(*codes.lock().unwrap(), vec![123456]);
+        assert_eq!(rec.mice.len(), 1);
+        assert_eq!(rec.pens.len(), 1);
+        assert_eq!(rec.targets, vec![TARGET]);
+    }
+
+    /// A rejected helper ends with `Rejected`.
+    #[test]
+    fn rejected_welcome_ends_session() {
+        let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+        let addr = listener.local_addr().unwrap();
+        let phone = std::thread::spawn(move || {
+            let (mut s, _) = listener.accept().unwrap();
+            read_frame(&mut s);
+            s.write_all(&encode(&Frame::Welcome { version: VERSION, status: status::REJECTED })).unwrap();
+        });
+        let shared = Shared::new(Mode::Tether, TARGET);
+        let identity = Identity { token: [0; TOKEN_LEN], name: "PC".into() };
+        let mut rec = Recorder::default();
+        let end = session(TcpStream::connect(addr).unwrap(), &shared, &identity, &mut rec, 0, &|_| {});
+        phone.join().unwrap();
+        assert!(matches!(end, End::Rejected), "{end:?}");
+    }
+
+    /// A silent phone times out instead of hanging.
+    #[test]
+    fn silent_phone_times_out() {
+        let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+        let addr = listener.local_addr().unwrap();
+        let phone = std::thread::spawn(move || {
+            let (mut s, _) = listener.accept().unwrap();
+            read_frame(&mut s);
+            std::thread::sleep(HANDSHAKE_TIMEOUT + Duration::from_millis(500));
+        });
+        let shared = Shared::new(Mode::Adb, TARGET);
+        let identity = Identity { token: [0; TOKEN_LEN], name: "PC".into() };
+        let mut rec = Recorder::default();
+        let end = session(TcpStream::connect(addr).unwrap(), &shared, &identity, &mut rec, 0, &|_| {});
+        phone.join().unwrap();
+        assert!(matches!(end, End::Timeout), "{end:?}");
+    }
+}

@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- assets/wireframes/pen-canvas.svg: full-screen landscape pen canvas wireframe with tablet-area letterbox. -->
+<svg xmlns="http://www.w3.org/2000/svg" width="780" height="360" viewBox="0 0 780 360" font-family="sans-serif">
+  <rect x="0" y="0" width="780" height="360" fill="#001e30"/>
+  <!-- Active tablet area (16:9 letterbox inside the 2.17:1 panel) -->
+  <rect x="70" y="0" width="640" height="360" fill="#004b70" stroke="#cfe5ff" stroke-dasharray="6 4"/>
+  <text x="300" y="30" font-size="13" fill="#cfe5ff">active area = target monitor aspect</text>
+  <!-- Ink trail -->
+  <path d="M200 220 C 260 140, 340 300, 420 180 S 560 140, 600 210" fill="none" stroke="#ffffff" stroke-width="4" stroke-linecap="round" opacity="0.85"/>
+  <circle cx="600" cy="210" r="6" fill="#ffffff"/>
+  <!-- Exit control -->
+  <circle cx="750" cy="30" r="16" fill="none" stroke="#cfe5ff"/>
+  <text x="744" y="35" font-size="14" fill="#cfe5ff">&#10005;</text>
+  <text x="20" y="345" font-size="12" fill="#cfe5ff">fingers outside the pen: trackpad (palm rejection while pen is near)</text>
+</svg>

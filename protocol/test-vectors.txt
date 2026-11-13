@@ -1,0 +1,13 @@
+# test-vectors.txt: golden vectors for the PadLink wired protocol (see "Wired protocol" in architecture.md).
+# One frame per line: frame=<name> <field>=<value> ... hex=<encoded frame bytes, lowercase>.
+# Both the Kotlin codec (android/app/src/test) and the Rust codec (helper/protocol/tests) must pass every line.
+frame=hello version=1 token=00112233445566778899aabbccddeeff name=PC hex=0015010100112233445566778899aabbccddeeff025043
+frame=welcome version=1 status=0 hex=0003020100
+frame=welcome version=1 status=1 hex=0003020101
+frame=pair_code code=123456 hex=0005030001e240
+frame=host_info width=2560 height=1440 hex=0005040a0005a0
+frame=mouse buttons=1 dx=-300 dy=5 wheel=120 pan=-120 hex=000a1001fed400050078ff88
+frame=pen flags=3 x=16384 y=8192 pressure=2048 tilt_x=-20 tilt_y=15 twist=90 hex=000c1103400020000800ec0f005a
+frame=ping nonce=3735928559 hex=000520deadbeef
+frame=pong nonce=3735928559 hex=000521deadbeef
+frame=bye hex=000130
