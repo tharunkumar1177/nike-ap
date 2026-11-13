@@ -20,7 +20,7 @@ class OutboxQueue(private val capacity: Int = 256) {
         when {
             item is Outgoing.Mouse && tail is Outgoing.Mouse && mergeable(tail, item) -> {
                 items.pollLast()
-                items.addLast(Outgoing.Mouse(sum(tail, item)))
+                items.addLast(sum(tail, item))
             }
             item is Outgoing.Pen && tail is Outgoing.Pen && tail.report.flags == item.report.flags -> {
                 items.pollLast()

@@ -9,12 +9,11 @@ use std::ptr::{null, null_mut};
 use windows_sys::Win32::Foundation::{BOOL, LPARAM, RECT};
 use windows_sys::Win32::Graphics::Gdi::{EnumDisplayMonitors, GetMonitorInfoW, HDC, HMONITOR, MONITORINFO, MONITORINFOEXW};
 use windows_sys::Win32::UI::Controls::{
-    CreateSyntheticPointerDevice, DestroySyntheticPointerDevice, InjectSyntheticPointerInput, HSYNTHETICPOINTERDEVICE,
-    POINTER_TYPE_INFO,
+    CreateSyntheticPointerDevice, DestroySyntheticPointerDevice, HSYNTHETICPOINTERDEVICE, POINTER_TYPE_INFO,
 };
 use windows_sys::Win32::UI::HiDpi::{SetProcessDpiAwarenessContext, DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2};
 use windows_sys::Win32::UI::Input::KeyboardAndMouse::{SendInput, INPUT, INPUT_0, MOUSEINPUT};
-use windows_sys::Win32::UI::Input::Pointer::POINTER_PEN_INFO;
+use windows_sys::Win32::UI::Input::Pointer::{InjectSyntheticPointerInput, POINTER_PEN_INFO};
 use windows_sys::Win32::UI::WindowsAndMessaging::MessageBoxW;
 
 const INPUT_MOUSE: u32 = 0;
