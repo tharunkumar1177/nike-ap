@@ -8,9 +8,9 @@ The phone screen acts as a laptop-style trackpad: one finger moves the pointer, 
 
 ## Current verified status
 
-**Status:** Planned
+**Status:** Partial
 
-No implementation exists yet.
+Gestures, pointer and scroll math, click timing, the Mouse screen, scroll strip, buttons, settings sheet, and haptics are implemented. The unit tests listed below pass in CI. On-device acceptance with a Windows host has not been recorded yet.
 
 ## Architecture dependencies
 
@@ -45,15 +45,14 @@ None
 
 ## Relevant implementation and tests
 
-- `android/app/src/main/kotlin/dev/padlink/input/GestureEngine.kt` (planned)
-- `android/app/src/main/kotlin/dev/padlink/input/PointerAccel.kt` (planned)
-- `android/app/src/main/kotlin/dev/padlink/input/MouseController.kt` (planned)
-- `android/app/src/main/kotlin/dev/padlink/ui/` (planned)
+- `android/app/src/main/kotlin/dev/padlink/input/GestureEngine.kt`, `PointerAccel.kt`, `MouseController.kt`, `Scheduler.kt`
+- `android/app/src/main/kotlin/dev/padlink/ui/MouseScreen.kt` (header, transport picker, layout), `TrackpadSurface.kt` (trackpad, scroll strip, buttons), `TrackpadView.kt`, `PadSession.kt`, `SettingsSheet.kt`, `ConnectionCards.kt`, `Haptics.kt`, `MainViewModel.kt`
+- Tests: `android/app/src/test/kotlin/dev/padlink/input/GestureEngineTest.kt`, `PointerAccelTest.kt`, `MouseControllerTest.kt`
 
 ## Acceptance or verification criteria
 
-- [ ] Unit tests: tap, double-tap drag, two- and three-finger taps, slop rejection, two-finger scroll direction and invert.
-- [ ] Unit tests: acceleration curve and remainder carry-over.
+- [x] Unit tests: tap, double-tap drag, two- and three-finger taps, slop rejection, two-finger scroll direction and invert.
+- [x] Unit tests: acceleration curve and remainder carry-over.
 - [ ] On device: pointer, clicks, scroll, and drag work on a Windows host over each transport.
 
 ## Values taken from the original app

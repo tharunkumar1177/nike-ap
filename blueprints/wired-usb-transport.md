@@ -8,9 +8,9 @@ Over a USB cable, the phone serves the wired protocol so the Windows helper can 
 
 ## Current verified status
 
-**Status:** Planned
+**Status:** Partial
 
-No implementation exists yet.
+The codec, the TCP server for both modes, the pairing flow, the keepalive, and the tether interface lookup are implemented. Codec golden vectors and interface-name tests pass in CI. Cable tests with the helper have not been recorded yet.
 
 ## Architecture dependencies
 
@@ -21,7 +21,8 @@ No implementation exists yet.
 
 ## Local rules and implications
 
-- One client at a time; a new client replaces the old one after its Hello is accepted.
+- One client at a time; a new client replaces the old one after its Hello is accepted. Only one pairing can be pending; a second unknown helper is rejected while it waits.
+- Socket writes never run on the main thread; `stop()` sends the release frames and Bye from a short-lived thread.
 - Tethering mode rescans network interfaces every 2 s until a tether address exists and rebinds when it changes.
 - The header shows `Connecting` while waiting for the helper and `Connected` after Welcome status 0.
 - Guidance card: ADB mode explains enabling USB debugging and running the helper; tethering mode offers a button to open the system tethering settings.
@@ -38,13 +39,14 @@ None
 
 ## Relevant implementation and tests
 
-- `android/app/src/main/kotlin/dev/padlink/wire/` (planned)
-- `android/app/src/main/kotlin/dev/padlink/transport/wired/` (planned)
-- `protocol/test-vectors.txt` (planned)
+- `android/app/src/main/kotlin/dev/padlink/wire/WireFrame.kt`
+- `android/app/src/main/kotlin/dev/padlink/transport/wired/WiredTransport.kt`, `TetherInterfaces.kt`
+- `protocol/test-vectors.txt`
+- Tests: `android/app/src/test/kotlin/dev/padlink/wire/WireFrameTest.kt`, `android/app/src/test/kotlin/dev/padlink/transport/wired/TetherInterfacesTest.kt`
 
 ## Acceptance or verification criteria
 
-- [ ] Unit tests: codec passes all golden vectors in both directions.
+- [x] Unit tests: codec passes all golden vectors in both directions.
 - [ ] On device: cursor control through USB (ADB) and USB (Tethering) with the helper.
 
 ## Remaining gaps and unknowns

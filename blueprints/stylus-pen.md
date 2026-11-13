@@ -8,9 +8,9 @@ The S Pen works as a pressure-sensitive pen tablet for the computer while finger
 
 ## Current verified status
 
-**Status:** Planned
+**Status:** Partial
 
-No implementation exists yet.
+Tool-type routing, palm rejection, tablet and pointer modes, pressure curves, tilt conversion, the ink trail, the landscape pen canvas, and the Galaxy S Ultra tuning are implemented. The pure logic is unit-tested in CI. Behavior on a Galaxy S Ultra has not been verified yet.
 
 ## Architecture dependencies
 
@@ -46,15 +46,18 @@ No implementation exists yet.
 
 ## Relevant implementation and tests
 
-- `android/app/src/main/kotlin/dev/padlink/input/StylusInput.kt` (planned)
-- `android/app/src/main/kotlin/dev/padlink/input/PenController.kt` (planned)
+- `android/app/src/main/kotlin/dev/padlink/input/StylusInput.kt` (MotionEvent adapter), `TouchRouter.kt` (routing and palm rejection), `PenController.kt`, `TabletMapping.kt`
+- `android/app/src/main/kotlin/dev/padlink/ui/InkTrail.kt` (API 29+; older devices skip the trail), `PenCanvasScreen.kt`, `DisplayTuning.kt`, `android/app/src/main/kotlin/dev/padlink/PenCanvasActivity.kt`
+- Tests: `android/app/src/test/kotlin/dev/padlink/input/PenInputTest.kt`, `TabletMappingTest.kt`
 
 ## Acceptance or verification criteria
 
-- [ ] Unit tests: tool-type routing, palm-rejection timing, tablet mapping with aspect lock and area, pressure curves, tilt conversion.
+- [x] Unit tests: tool-type routing, palm-rejection timing, tablet mapping with aspect lock and area, pressure curves, tilt conversion.
 - [ ] On device: hover, pressure, and barrel in OneNote or Whiteboard over Bluetooth and wired on a Galaxy S Ultra.
 
 ## Remaining gaps and unknowns
 
 - Whether Galaxy S Ultra devices report `AXIS_TILT` for the S Pen is unverified.
+- Android sends hover-exit just before contact and contact-end just before hover. The pen therefore counts as gone only after 80 ms without a new sample. That grace period is a PadLink design value and has not been tuned on hardware.
+- The tilt sign convention (orientation 0 means the pen points at the top of the screen) is unverified against Windows Ink.
 - macOS does not give pressure for generic HID pens.
