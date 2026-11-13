@@ -47,7 +47,7 @@ pub fn status_text(status: &Status, mode: Mode) -> String {
     };
     match status {
         Status::Searching(reason) if reason.is_empty() => format!("Looking for the phone over {via}"),
-        Status::Searching(reason) => format!("Looking for the phone: {reason}"),
+        Status::Searching(reason) => format!("Looking for the phone over {via}: {reason}"),
         Status::Pairing(code) => format!("Approve code {:03} {:03} on the phone", code / 1000, code % 1000),
         Status::Connected => format!("Connected over {via}"),
         Status::Rejected => "The phone denied this computer".to_owned(),

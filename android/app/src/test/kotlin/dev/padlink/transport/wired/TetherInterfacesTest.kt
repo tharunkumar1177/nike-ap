@@ -1,6 +1,9 @@
 // TetherInterfacesTest.kt: checks which interface names count as USB tethering.
 package dev.padlink.transport.wired
 
+import java.net.Inet4Address
+import java.net.InetAddress
+import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -19,5 +22,18 @@ class TetherInterfacesTest {
         listOf("wlan0", "rmnet_data0", "lo", "swlan0", "usbnet", "p2p0").forEach {
             assertFalse(it, TetherInterfaces.isTetherName(it))
         }
+    }
+
+    /** IPv4-mapped IPv6 addresses become plain IPv4, so loopback and tether checks see the real address. */
+    @Test
+    fun unmapsIpv4MappedAddresses() {
+        val mapped = InetAddress.getByAddress(ByteArray(10) + byteArrayOf(-1, -1, 127, 0, 0, 1))
+        val plain = TetherInterfaces.unmap(mapped)
+        assertTrue(plain is Inet4Address)
+        assertTrue(plain.isLoopbackAddress)
+        val tether = InetAddress.getByAddress(byteArrayOf(192.toByte(), 168.toByte(), 42, 129.toByte()))
+        assertEquals(tether, TetherInterfaces.unmap(tether))
+        val v6 = InetAddress.getByName("fe80::1")
+        assertEquals(v6, TetherInterfaces.unmap(v6))
     }
 }

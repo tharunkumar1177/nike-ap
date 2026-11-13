@@ -151,7 +151,9 @@ pub fn run(shared: &Shared, identity: &Identity, injector: &mut dyn Injector, on
         let stream = match TcpStream::connect_timeout(&addr, CONNECT_TIMEOUT) {
             Ok(s) => s,
             Err(_) => {
-                shared.set_status(Status::Searching("start PadLink on the phone and pick this USB mode".into()));
+                shared.set_status(Status::Searching(format!(
+                    "start PadLink on the phone and pick this USB mode [{addr}]"
+                )));
                 sleep_unless_stopped(shared, RETRY_DELAY);
                 continue;
             }
@@ -162,7 +164,7 @@ pub fn run(shared: &Shared, identity: &Identity, injector: &mut dyn Injector, on
             End::Rejected => shared.set_status(Status::Rejected),
             End::Version => shared.set_status(Status::VersionMismatch),
             End::Local => {}
-            other => shared.set_status(Status::Searching(drop_reason(other, connected))),
+            other => shared.set_status(Status::Searching(format!("{} [{addr}]", drop_reason(other, connected)))),
         }
         if !matches!(end, End::Local) {
             let delay = if matches!(end, End::Rejected | End::Version) { RETRY_DELAY * 5 } else { RETRY_DELAY };
