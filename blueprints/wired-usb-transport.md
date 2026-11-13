@@ -22,6 +22,7 @@ The codec, the TCP server for both modes, the pairing flow, the keepalive, and t
 ## Local rules and implications
 
 - One client at a time; a new client replaces the old one after its Hello is accepted. Only one pairing can be pending; a second unknown helper is rejected while it waits.
+- When a session ends, the transport records why: the helper went silent for 3 s, the helper closed the connection, no Hello arrived, a newer session replaced it, a protocol error, or a socket error. The waiting card shows that reason with the helper's name, and the reason is logged under the `PadLinkWired` tag.
 - Socket writes never run on the main thread; `stop()` sends the release frames and Bye from a short-lived thread.
 - Tethering mode rescans network interfaces every 2 s until a tether address exists and rebinds when it changes.
 - The header shows `Connecting` while waiting for the helper and `Connected` after Welcome status 0.

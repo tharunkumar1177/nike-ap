@@ -18,6 +18,10 @@ fn main() {
     use std::sync::atomic::Ordering;
     use std::sync::Arc;
 
+    if !win::claim_single_instance() {
+        win::error_box("PadLink Helper is already running. Look for its icon in the notification area.");
+        return;
+    }
     win::enable_dpi_awareness();
     let dir = store::data_dir();
     let config = store::load_config(&dir);

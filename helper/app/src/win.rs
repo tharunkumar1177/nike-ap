@@ -6,7 +6,8 @@ use crate::pen::{PenStep, PenTracker, Rect};
 use padlink_protocol::{buttons, MouseFrame, PenFrame};
 use std::mem::{size_of, zeroed};
 use std::ptr::{null, null_mut};
-use windows_sys::Win32::Foundation::{BOOL, LPARAM, RECT};
+use windows_sys::Win32::Foundation::{GetLastError, BOOL, ERROR_ALREADY_EXISTS, LPARAM, RECT};
+use windows_sys::Win32::System::Threading::CreateMutexW;
 use windows_sys::Win32::Graphics::Gdi::{EnumDisplayMonitors, GetMonitorInfoW, HDC, HMONITOR, MONITORINFO, MONITORINFOEXW};
 use windows_sys::Win32::UI::Controls::{
     CreateSyntheticPointerDevice, DestroySyntheticPointerDevice, HSYNTHETICPOINTERDEVICE, POINTER_TYPE_INFO,
@@ -34,6 +35,18 @@ const MB_ICONINFORMATION: u32 = 0x0000_0040;
 const MB_ICONERROR: u32 = 0x0000_0010;
 const MB_SETFOREGROUND: u32 = 0x0001_0000;
 const MB_TOPMOST: u32 = 0x0004_0000;
+
+/// Claims the per-user helper mutex; false when another helper already holds it.
+///
+/// Two helpers share one token, so each would replace the other's session on the phone.
+pub fn claim_single_instance() -> bool {
+    let name = wide("Local\\PadLinkHelper");
+    // SAFETY: `name` is NUL-terminated; the handle is kept open for the life of the process.
+    unsafe {
+        let handle = CreateMutexW(null(), 0, name.as_ptr());
+        !handle.is_null() && GetLastError() != ERROR_ALREADY_EXISTS
+    }
+}
 
 /// Makes monitor rectangles and pen coordinates physical pixels on every monitor.
 pub fn enable_dpi_awareness() {

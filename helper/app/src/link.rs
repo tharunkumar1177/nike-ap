@@ -156,21 +156,30 @@ pub fn run(shared: &Shared, identity: &Identity, injector: &mut dyn Injector, on
                 continue;
             }
         };
-        let end = session(stream, shared, identity, injector, generation, on_pair_code);
+        let (end, connected) = session(stream, shared, identity, injector, generation, on_pair_code);
         injector.release_all();
         match &end {
             End::Rejected => shared.set_status(Status::Rejected),
             End::Version => shared.set_status(Status::VersionMismatch),
             End::Local => {}
-            End::Closed | End::Timeout => {
-                shared.set_status(Status::Searching("connection lost; reconnecting".into()));
-            }
-            End::Io(msg) => shared.set_status(Status::Searching(format!("connection error ({msg}); reconnecting"))),
+            other => shared.set_status(Status::Searching(drop_reason(other, connected))),
         }
         if !matches!(end, End::Local) {
             let delay = if matches!(end, End::Rejected | End::Version) { RETRY_DELAY * 5 } else { RETRY_DELAY };
             sleep_unless_stopped(shared, delay);
         }
+    }
+}
+
+/// Tray text for a session that ended on its own; `connected` tells whether the handshake had finished.
+fn drop_reason(end: &End, connected: bool) -> String {
+    match (end, connected) {
+        (End::Closed, false) => "the phone closed the connection during the handshake; retrying".into(),
+        (End::Timeout, false) => "the phone did not answer the handshake; retrying".into(),
+        (End::Closed, true) => "the phone ended the connection; reconnecting".into(),
+        (End::Timeout, true) => "no data from the phone for 3 s; reconnecting".into(),
+        (End::Io(msg), _) => format!("connection error ({msg}); reconnecting"),
+        _ => "reconnecting".into(),
     }
 }
 
@@ -291,6 +300,7 @@ fn host_info(rect: &Rect) -> Frame {
 }
 
 /// One connection: Hello, Welcome (with optional pairing), HostInfo, then the input loop.
+/// Returns why it ended and whether the handshake had completed.
 fn session(
     stream: TcpStream,
     shared: &Shared,
@@ -298,13 +308,13 @@ fn session(
     injector: &mut dyn Injector,
     generation: u64,
     on_pair_code: &dyn Fn(u32),
-) -> End {
+) -> (End, bool) {
     if stream.set_nodelay(true).is_err() {
-        return End::Io("socket setup failed".into());
+        return (End::Io("socket setup failed".into()), false);
     }
     let mut conn = match Conn::new(stream) {
         Ok(conn) => conn,
-        Err(end) => return end,
+        Err(end) => return (end, false),
     };
     match handshake(&mut conn, shared, identity, generation, on_pair_code) {
         Ok(()) => {}
@@ -312,7 +322,7 @@ fn session(
             if matches!(end, End::Local) {
                 let _ = conn.send(&Frame::Bye);
             }
-            return end;
+            return (end, false);
         }
     }
     shared.set_status(Status::Connected);
@@ -323,7 +333,7 @@ fn session(
     if matches!(end, End::Local) {
         let _ = conn.send(&Frame::Bye);
     }
-    end
+    (end, true)
 }
 
 /// Sends Hello and waits for an accepted Welcome, handling tethering approval.
@@ -472,9 +482,10 @@ mod tests {
         let codes_in = codes.clone();
         let mut rec = Recorder::default();
         let stream = TcpStream::connect(addr).unwrap();
-        let end = session(stream, &shared, &identity, &mut rec, 0, &move |c| codes_in.lock().unwrap().push(c));
+        let (end, connected) = session(stream, &shared, &identity, &mut rec, 0, &move |c| codes_in.lock().unwrap().push(c));
         phone.join().unwrap();
         assert!(matches!(end, End::Closed), "{end:?}");
+        assert!(connected);
         assert_eq!(*codes.lock().unwrap(), vec![123456]);
         assert_eq!(rec.mice.len(), 1);
         assert_eq!(rec.pens.len(), 1);
@@ -511,9 +522,10 @@ mod tests {
         let shared = Shared::new(Mode::Tether, TARGET);
         let identity = Identity { token: [3; TOKEN_LEN], name: "PC".into() };
         let mut rec = Recorder::default();
-        let end = session(TcpStream::connect(addr).unwrap(), &shared, &identity, &mut rec, 0, &|_| {});
+        let (end, connected) = session(TcpStream::connect(addr).unwrap(), &shared, &identity, &mut rec, 0, &|_| {});
         phone.join().unwrap();
         assert!(matches!(end, End::Closed), "{end:?}");
+        assert!(connected);
         assert_eq!(rec.mice.len(), 2);
         assert_eq!(rec.mice[1].dx, -300);
     }
@@ -531,9 +543,18 @@ mod tests {
         let shared = Shared::new(Mode::Tether, TARGET);
         let identity = Identity { token: [0; TOKEN_LEN], name: "PC".into() };
         let mut rec = Recorder::default();
-        let end = session(TcpStream::connect(addr).unwrap(), &shared, &identity, &mut rec, 0, &|_| {});
+        let (end, connected) = session(TcpStream::connect(addr).unwrap(), &shared, &identity, &mut rec, 0, &|_| {});
         phone.join().unwrap();
         assert!(matches!(end, End::Rejected), "{end:?}");
+        assert!(!connected);
+    }
+
+    /// Drop reasons name the stage and the cause.
+    #[test]
+    fn drop_reasons_name_the_stage() {
+        assert!(drop_reason(&End::Closed, false).contains("handshake"));
+        assert!(drop_reason(&End::Timeout, true).contains("3 s"));
+        assert!(drop_reason(&End::Io("reset".into()), true).contains("reset"));
     }
 
     /// A silent phone times out instead of hanging.
@@ -549,8 +570,9 @@ mod tests {
         let shared = Shared::new(Mode::Adb, TARGET);
         let identity = Identity { token: [0; TOKEN_LEN], name: "PC".into() };
         let mut rec = Recorder::default();
-        let end = session(TcpStream::connect(addr).unwrap(), &shared, &identity, &mut rec, 0, &|_| {});
+        let (end, connected) = session(TcpStream::connect(addr).unwrap(), &shared, &identity, &mut rec, 0, &|_| {});
         phone.join().unwrap();
         assert!(matches!(end, End::Timeout), "{end:?}");
+        assert!(!connected);
     }
 }

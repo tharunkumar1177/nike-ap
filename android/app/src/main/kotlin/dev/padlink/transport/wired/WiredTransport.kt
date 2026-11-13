@@ -1,9 +1,12 @@
 // WiredTransport.kt: TCP server for the Windows helper over adb forward (loopback) or USB tethering.
 package dev.padlink.transport.wired
 
+import android.util.Log
 import dev.padlink.input.PenReport
 import dev.padlink.settings.SettingsStore
+import dev.padlink.transport.DropReason
 import dev.padlink.transport.HostSize
+import dev.padlink.transport.LinkDrop
 import dev.padlink.transport.LinkIssue
 import dev.padlink.transport.LinkState
 import dev.padlink.transport.LinkStatus
@@ -55,6 +58,7 @@ class WiredTransport(
     @Volatile private var serverSocket: ServerSocket? = null
     @Volatile private var serverIssue: LinkIssue? = null
     @Volatile private var pendingDecision: ArrayBlockingQueue<Boolean>? = null
+    @Volatile private var lastDrop: LinkDrop? = null
     private var serverThread: Thread? = null
 
     /** One accepted helper connection with serialized writes. */
@@ -64,6 +68,7 @@ class WiredTransport(
         @Volatile var open = true
         @Volatile var name: String = ""
         @Volatile var hostSize: HostSize? = null
+        @Volatile var replaced = false
 
         /** Writes [frames] and flushes; closes the session and returns false on failure. */
         fun write(vararg frames: WireFrame): Boolean = synchronized(this) {
@@ -185,9 +190,20 @@ class WiredTransport(
             runCatching { socket.close() }
             return
         }
+        var connected = false
+        var reason: DropReason? = null
         try {
             val reader = FrameReader(socket.getInputStream())
-            val hello = reader.read() as? WireFrame.Hello ?: return
+            val hello = try {
+                reader.read()
+            } catch (_: SocketTimeoutException) {
+                reason = DropReason.NO_HELLO
+                return
+            }
+            if (hello !is WireFrame.Hello) {
+                reason = if (hello == null) DropReason.HELPER_CLOSED else DropReason.PROTOCOL_ERROR
+                return
+            }
             if (hello.version != WireCodec.VERSION) {
                 s.write(WireFrame.Welcome(WireCodec.VERSION, WireCodec.STATUS_VERSION_MISMATCH))
                 return
@@ -200,40 +216,53 @@ class WiredTransport(
             val previous = synchronized(sessionLock) {
                 session.also { session = s }
             }
-            previous?.close()
+            previous?.let {
+                it.replaced = true
+                it.close()
+            }
+            connected = true
+            lastDrop = null
+            Log.i(TAG, "helper ${s.name} connected from ${socket.inetAddress.hostAddress}")
             outbox.clear()
             publishCurrent()
             startPinger(s)
-            receive(s, reader)
-        } catch (_: IOException) {
-            // Link lost or timed out.
-        } catch (_: WireFormatException) {
-            // Protocol violation; drop the helper.
+            reason = receive(s, reader)
+        } catch (_: SocketTimeoutException) {
+            reason = DropReason.HELPER_SILENT
+        } catch (e: IOException) {
+            reason = if (s.replaced) DropReason.REPLACED else DropReason.NETWORK_ERROR
+            if (!s.replaced) Log.w(TAG, "helper ${s.name} socket error", e)
+        } catch (e: WireFormatException) {
+            reason = DropReason.PROTOCOL_ERROR
+            Log.w(TAG, "helper ${s.name} protocol error", e)
         } finally {
             s.close()
+            if (reason != null && running) {
+                Log.i(TAG, "helper ${s.name} dropped: $reason (connected=$connected)")
+                if (reason != DropReason.REPLACED) lastDrop = LinkDrop(reason, s.name, connected)
+            }
             val wasActive = synchronized(sessionLock) {
                 (session === s).also { if (it) session = null }
             }
-            if (wasActive) {
-                outbox.clear()
-                if (running) publishCurrent()
-            }
+            if (wasActive) outbox.clear()
+            if (running && (wasActive || session == null)) publishCurrent()
         }
     }
 
-    /** Processes helper frames until Bye, close, or the 3 s link timeout. */
-    private fun receive(s: Session, reader: FrameReader) {
+    /** Processes helper frames until Bye or close; the 3 s link timeout surfaces as an exception. */
+    private fun receive(s: Session, reader: FrameReader): DropReason {
         while (running && s.open) {
-            when (val frame = reader.read() ?: return) {
+            when (val frame = reader.read() ?: return DropReason.HELPER_CLOSED) {
                 is WireFrame.HostInfo -> if (frame.width > 0 && frame.height > 0) {
                     s.hostSize = HostSize(frame.width, frame.height)
                     if (session === s) publishCurrent()
                 }
                 is WireFrame.Ping -> s.write(WireFrame.Pong(frame.nonce))
-                WireFrame.Bye -> return
+                WireFrame.Bye -> return DropReason.HELPER_CLOSED
                 else -> Unit
             }
         }
+        return if (s.replaced) DropReason.REPLACED else DropReason.NETWORK_ERROR
     }
 
     /**
@@ -319,7 +348,7 @@ class WiredTransport(
         _state.value = when {
             s != null -> LinkState(LinkStatus.CONNECTED, stack, targetName = s.name, hostSize = s.hostSize)
             serverIssue != null -> LinkState(LinkStatus.UNAVAILABLE, stack, issue = serverIssue)
-            else -> LinkState(LinkStatus.CONNECTING, stack, issue = LinkIssue.WAITING_FOR_HELPER)
+            else -> LinkState(LinkStatus.CONNECTING, stack, issue = LinkIssue.WAITING_FOR_HELPER, lastDrop = lastDrop)
         }
     }
 
@@ -348,6 +377,7 @@ class WiredTransport(
     }
 
     private companion object {
+        const val TAG = "PadLinkWired"
         const val BACKLOG = 2
         const val RESCAN_MS = 2_000L
         const val LINK_TIMEOUT_MS = 3_000

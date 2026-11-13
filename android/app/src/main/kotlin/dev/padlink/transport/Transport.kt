@@ -33,6 +33,25 @@ enum class LinkIssue {
 /** Pending approval of a wired helper over tethering. */
 data class PairingRequest(val code: String, val hostName: String)
 
+/** Why the last wired helper connection ended. */
+enum class DropReason {
+    /** Connected, but nothing arrived for the 3 s link timeout. */
+    HELPER_SILENT,
+    /** The helper closed the connection or said Bye. */
+    HELPER_CLOSED,
+    /** The helper connected but sent no Hello within 3 s. */
+    NO_HELLO,
+    /** Another helper connection took over. */
+    REPLACED,
+    /** Bytes on the wire did not follow the protocol. */
+    PROTOCOL_ERROR,
+    /** The socket failed. */
+    NETWORK_ERROR,
+}
+
+/** The last wired disconnect, shown while waiting for the helper to return. */
+data class LinkDrop(val reason: DropReason, val hostName: String, val wasConnected: Boolean)
+
 /** Pixel size of the computer screen the pen targets, reported by the wired helper. */
 data class HostSize(val width: Int, val height: Int)
 
@@ -47,6 +66,7 @@ data class LinkState(
     val issue: LinkIssue? = null,
     val pairing: PairingRequest? = null,
     val hostSize: HostSize? = null,
+    val lastDrop: LinkDrop? = null,
 ) {
     companion object {
         val IDLE = LinkState(LinkStatus.IDLE)

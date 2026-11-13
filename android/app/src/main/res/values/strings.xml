@@ -43,6 +43,14 @@
     <string name="card_adb_body">Connect the USB cable, allow USB debugging, and start PadLink Helper on the computer. It sets up the connection with adb automatically.</string>
     <string name="card_tether_title">Waiting for PadLink Helper</string>
     <string name="card_tether_body">USB tethering is on. Start PadLink Helper on the computer; you will be asked to approve it the first time.</string>
+    <string name="drop_connected">Last connection from %1$s ended: %2$s</string>
+    <string name="drop_attempt">Last attempt from %1$s failed: %2$s</string>
+    <string name="drop_helper_silent">the computer stopped sending data for 3 seconds.</string>
+    <string name="drop_helper_closed">the helper closed the connection. Check that only one copy of PadLink Helper is running.</string>
+    <string name="drop_no_hello">the helper connected but never introduced itself.</string>
+    <string name="drop_replaced">another helper connection took over.</string>
+    <string name="drop_protocol_error">the helper sent data this app does not understand. Update both apps.</string>
+    <string name="drop_network_error">the USB network connection failed.</string>
     <string name="card_bt_off_title">Bluetooth is off</string>
     <string name="card_bt_off_body">Turn on Bluetooth to use PadLink as a wireless mouse and pen.</string>
     <string name="card_permission_title">Permission needed</string>

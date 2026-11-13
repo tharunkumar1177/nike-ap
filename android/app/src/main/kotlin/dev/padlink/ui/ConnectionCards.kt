@@ -29,6 +29,7 @@ import dev.padlink.R
 import dev.padlink.settings.BtMode
 import dev.padlink.settings.ConnectionSettings
 import dev.padlink.settings.TransportKind
+import dev.padlink.transport.DropReason
 import dev.padlink.transport.LinkIssue
 import dev.padlink.transport.LinkState
 import dev.padlink.transport.LinkStatus
@@ -88,6 +89,17 @@ private fun guidanceFor(link: LinkState, connection: ConnectionSettings): Guidan
     }
 }
 
+/** Text for why the last wired connection ended. */
+@StringRes
+private fun dropText(reason: DropReason): Int = when (reason) {
+    DropReason.HELPER_SILENT -> R.string.drop_helper_silent
+    DropReason.HELPER_CLOSED -> R.string.drop_helper_closed
+    DropReason.NO_HELLO -> R.string.drop_no_hello
+    DropReason.REPLACED -> R.string.drop_replaced
+    DropReason.PROTOCOL_ERROR -> R.string.drop_protocol_error
+    DropReason.NETWORK_ERROR -> R.string.drop_network_error
+}
+
 /** Card explaining why input is not reaching the computer and how to fix it. */
 @Composable
 fun ConnectionInfoCard(
@@ -107,6 +119,16 @@ fun ConnectionInfoCard(
         Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
             Text(stringResource(guidance.title), style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
             Text(stringResource(guidance.body), style = MaterialTheme.typography.bodyMedium)
+            link.lastDrop?.takeIf { link.issue == LinkIssue.WAITING_FOR_HELPER }?.let { drop ->
+                Text(
+                    stringResource(
+                        if (drop.wasConnected) R.string.drop_connected else R.string.drop_attempt,
+                        drop.hostName,
+                        stringResource(dropText(drop.reason)),
+                    ),
+                    style = MaterialTheme.typography.bodySmall,
+                )
+            }
             if (guidance.actions.isNotEmpty()) {
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
                     for (action in guidance.actions) {
