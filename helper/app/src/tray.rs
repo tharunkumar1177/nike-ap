@@ -1,4 +1,4 @@
-//! tray.rs: notification-area icon with status, USB mode choice, pen monitor choice, and Quit.
+//! tray.rs: notification-area icon with status, connection mode choice, pen monitor choice, and Quit.
 
 use crate::link::{Shared, Status};
 use crate::store::{save_config, HelperConfig, Mode};
@@ -41,10 +41,7 @@ pub fn icon_rgba(size: u32) -> Vec<u8> {
 
 /// Tray text for a status and mode.
 pub fn status_text(status: &Status, mode: Mode) -> String {
-    let via = match mode {
-        Mode::Adb => "USB (ADB)",
-        Mode::Tether => "USB (Tethering)",
-    };
+    let via = mode.label();
     match status {
         Status::Searching(reason) if reason.is_empty() => format!("Looking for the phone over {via}"),
         Status::Searching(reason) => format!("Looking for the phone over {via}: {reason}"),
@@ -110,22 +107,20 @@ fn pump_messages() {
 /// Runs the tray until Quit; sets `shared.stop` before returning.
 pub fn run(shared: Arc<Shared>, dir: PathBuf, mut config: HelperConfig) -> Result<(), String> {
     let status_item = MenuItem::new("Starting…", false, None);
-    let adb_item = CheckMenuItem::new("USB (ADB)", true, config.mode == Mode::Adb, None);
-    let tether_item = CheckMenuItem::new("USB (Tethering)", true, config.mode == Mode::Tether, None);
+    let mode_items: Vec<(CheckMenuItem, Mode)> = [Mode::Adb, Mode::Tether, Mode::Hotspot]
+        .into_iter()
+        .map(|m| (CheckMenuItem::new(m.label(), true, config.mode == m, None), m))
+        .collect();
     let mut monitor_menu = MonitorMenu { submenu: Submenu::new("Pen display", true), items: Vec::new() };
     let quit_item = MenuItem::new("Quit", true, None);
 
     let menu = Menu::new();
-    menu.append_items(&[
-        &status_item,
-        &PredefinedMenuItem::separator(),
-        &adb_item,
-        &tether_item,
-        &monitor_menu.submenu,
-        &PredefinedMenuItem::separator(),
-        &quit_item,
-    ])
-    .map_err(|e| e.to_string())?;
+    menu.append_items(&[&status_item, &PredefinedMenuItem::separator()]).map_err(|e| e.to_string())?;
+    for (item, _) in &mode_items {
+        menu.append(item).map_err(|e| e.to_string())?;
+    }
+    menu.append_items(&[&monitor_menu.submenu, &PredefinedMenuItem::separator(), &quit_item])
+        .map_err(|e| e.to_string())?;
 
     let mut list = monitors();
     let mut selected = pick_monitor(&list, config.monitor.as_deref()).map(|m| m.name.clone()).unwrap_or_default();
@@ -150,16 +145,11 @@ pub fn run(shared: Arc<Shared>, dir: PathBuf, mut config: HelperConfig) -> Resul
                 shared.stop.store(true, Ordering::Relaxed);
                 return Ok(());
             }
-            let new_mode = if event.id == *adb_item.id() {
-                Some(Mode::Adb)
-            } else if event.id == *tether_item.id() {
-                Some(Mode::Tether)
-            } else {
-                None
-            };
+            let new_mode = mode_items.iter().find(|(item, _)| event.id == *item.id()).map(|(_, m)| *m);
             if let Some(mode) = new_mode {
-                adb_item.set_checked(mode == Mode::Adb);
-                tether_item.set_checked(mode == Mode::Tether);
+                for (item, m) in &mode_items {
+                    item.set_checked(*m == mode);
+                }
                 if mode != config.mode {
                     config.mode = mode;
                     *shared.mode.lock().unwrap_or_else(|e| e.into_inner()) = mode;
@@ -227,5 +217,7 @@ mod tests {
         assert_eq!(status_text(&Status::Pairing(42), Mode::Tether), "Approve code 000 042 on the phone");
         assert_eq!(status_text(&Status::Connected, Mode::Adb), "Connected over USB (ADB)");
         assert!(status_text(&Status::Searching(String::new()), Mode::Tether).contains("Tethering"));
+        assert_eq!(status_text(&Status::Connected, Mode::Hotspot), "Connected over Wi-Fi (Phone hotspot)");
+        assert!(status_text(&Status::Searching("x".into()), Mode::Hotspot).starts_with("Looking for the phone over Wi-Fi"));
     }
 }

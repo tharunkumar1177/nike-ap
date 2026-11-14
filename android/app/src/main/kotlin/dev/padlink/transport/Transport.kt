@@ -27,6 +27,7 @@ enum class LinkIssue {
     BLE_ADVERTISING_FAILED,
     WAITING_FOR_HELPER,
     TETHER_OFF,
+    HOTSPOT_OFF,
     PORT_IN_USE,
 }
 
@@ -56,7 +57,7 @@ data class LinkDrop(val reason: DropReason, val hostName: String, val wasConnect
 data class HostSize(val width: Int, val height: Int)
 
 /** Which concrete stack is running, for display. */
-enum class TransportStack { NONE, CLASSIC, BLE, USB_ADB, USB_TETHER }
+enum class TransportStack { NONE, CLASSIC, BLE, USB_ADB, USB_TETHER, WIFI_HOTSPOT }
 
 /** Snapshot of one transport's link. */
 data class LinkState(
@@ -67,6 +68,8 @@ data class LinkState(
     val pairing: PairingRequest? = null,
     val hostSize: HostSize? = null,
     val lastDrop: LinkDrop? = null,
+    /** Address the helper server listens on (hotspot mode), shown while waiting for the helper. */
+    val listenAddress: String? = null,
 ) {
     companion object {
         val IDLE = LinkState(LinkStatus.IDLE)

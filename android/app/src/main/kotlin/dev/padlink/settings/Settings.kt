@@ -17,7 +17,8 @@ enum class MouseButtonId(val key: String, val mask: Int) {
 enum class TransportKind(val key: String) {
     BLUETOOTH("bluetooth"),
     USB_ADB("usb_adb"),
-    USB_TETHER("usb_tether");
+    USB_TETHER("usb_tether"),
+    WIFI_HOTSPOT("wifi_hotspot");
 
     companion object {
         /** Parses a persisted key, falling back to Bluetooth. */

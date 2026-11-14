@@ -1,4 +1,4 @@
-// TetherInterfacesTest.kt: checks which interface names count as USB tethering.
+// TetherInterfacesTest.kt: checks which interface names count as USB tethering or Wi-Fi hotspot.
 package dev.padlink.transport.wired
 
 import java.net.Inet4Address
@@ -21,6 +21,22 @@ class TetherInterfacesTest {
     fun rejectsOtherNames() {
         listOf("wlan0", "rmnet_data0", "lo", "swlan0", "usbnet", "p2p0").forEach {
             assertFalse(it, TetherInterfaces.isTetherName(it))
+        }
+    }
+
+    /** Samsung `swlan0`, `ap0`, `softap0`, and secondary `wlan1`+ are hotspot interfaces. */
+    @Test
+    fun acceptsHotspotNames() {
+        listOf("swlan0", "ap0", "softap0", "wlan1", "wlan2").forEach {
+            assertTrue(it, TetherInterfaces.isHotspotName(it))
+        }
+    }
+
+    /** The phone's own Wi-Fi client `wlan0`, USB tether, cellular, loopback, and P2P interfaces are not. */
+    @Test
+    fun rejectsNonHotspotNames() {
+        listOf("wlan0", "wlan", "rndis0", "ncm0", "rmnet_data0", "lo", "p2p0", "aware_data0").forEach {
+            assertFalse(it, TetherInterfaces.isHotspotName(it))
         }
     }
 

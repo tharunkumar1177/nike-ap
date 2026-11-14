@@ -60,6 +60,8 @@ private fun guidanceFor(link: LinkState, connection: ConnectionSettings): Guidan
         link.issue != LinkIssue.WAITING_FOR_HELPER -> null
         connection.transport == TransportKind.USB_ADB ->
             Guidance(R.string.card_adb_title, R.string.card_adb_body, emptyList())
+        connection.transport == TransportKind.WIFI_HOTSPOT ->
+            Guidance(R.string.card_hotspot_title, R.string.card_hotspot_body, emptyList())
         else -> Guidance(R.string.card_tether_title, R.string.card_tether_body, emptyList())
     }
     LinkStatus.UNAVAILABLE -> when (link.issue) {
@@ -81,6 +83,9 @@ private fun guidanceFor(link: LinkState, connection: ConnectionSettings): Guidan
         )
         LinkIssue.TETHER_OFF -> Guidance(
             R.string.card_tether_off_title, R.string.card_tether_off_body, listOf(CardAction.TETHER_SETTINGS),
+        )
+        LinkIssue.HOTSPOT_OFF -> Guidance(
+            R.string.card_hotspot_off_title, R.string.card_hotspot_off_body, listOf(CardAction.TETHER_SETTINGS),
         )
         LinkIssue.PORT_IN_USE -> Guidance(
             R.string.card_port_title, R.string.card_port_body, emptyList(),
@@ -119,6 +124,9 @@ fun ConnectionInfoCard(
         Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
             Text(stringResource(guidance.title), style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
             Text(stringResource(guidance.body), style = MaterialTheme.typography.bodyMedium)
+            link.listenAddress?.takeIf { link.issue == LinkIssue.WAITING_FOR_HELPER }?.let { address ->
+                Text(stringResource(R.string.hotspot_address, address), style = MaterialTheme.typography.bodySmall)
+            }
             link.lastDrop?.takeIf { link.issue == LinkIssue.WAITING_FOR_HELPER }?.let { drop ->
                 Text(
                     stringResource(
@@ -177,7 +185,7 @@ fun SamsungHintCard(onDismiss: () -> Unit, modifier: Modifier = Modifier) {
     }
 }
 
-/** Approval dialog for a wired helper over tethering, showing the code both sides display. */
+/** Approval dialog for a helper over USB tethering or the Wi-Fi hotspot, showing the code both sides display. */
 @Composable
 fun PairingDialog(request: PairingRequest, onAnswer: (Boolean) -> Unit) {
     AlertDialog(
@@ -208,7 +216,7 @@ private fun openSettings(context: Context, action: String) {
     }
 }
 
-/** Opens the tethering screen, falling back to the general wireless settings. */
+/** Opens the hotspot and tethering screen, falling back to the general wireless settings. */
 private fun openTetherSettings(context: Context) {
     val tether = Intent().setClassName("com.android.settings", "com.android.settings.TetherSettings")
         .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)

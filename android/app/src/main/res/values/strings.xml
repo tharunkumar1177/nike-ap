@@ -9,6 +9,7 @@
     <string name="transport_bluetooth">Bluetooth</string>
     <string name="transport_usb_adb">USB (ADB)</string>
     <string name="transport_usb_tether">USB (Tethering)</string>
+    <string name="transport_wifi_hotspot">Wi-Fi (Phone hotspot)</string>
     <string name="no_paired_computers">No paired computers</string>
     <string name="pair_new_computer">Pair a new computer…</string>
     <string name="open_pen_canvas">Open S Pen canvas</string>
@@ -43,6 +44,9 @@
     <string name="card_adb_body">Connect the USB cable, allow USB debugging, and start PadLink Helper on the computer. It sets up the connection with adb automatically.</string>
     <string name="card_tether_title">Waiting for PadLink Helper</string>
     <string name="card_tether_body">USB tethering is on. Start PadLink Helper on the computer; you will be asked to approve it the first time.</string>
+    <string name="card_hotspot_title">Waiting for PadLink Helper</string>
+    <string name="card_hotspot_body">Mobile Hotspot is on. Connect the computer\'s Wi-Fi to this hotspot, set PadLink Helper to Wi-Fi (Phone hotspot), and approve it the first time. A 5 GHz hotspot band tracks more smoothly than 2.4 GHz.</string>
+    <string name="hotspot_address">Hotspot address: %1$s</string>
     <string name="drop_connected">Last connection from %1$s ended: %2$s</string>
     <string name="drop_attempt">Last attempt from %1$s failed: %2$s</string>
     <string name="drop_helper_silent">the computer stopped sending data for 3 seconds.</string>
@@ -50,19 +54,21 @@
     <string name="drop_no_hello">the helper connected but never introduced itself.</string>
     <string name="drop_replaced">another helper connection took over.</string>
     <string name="drop_protocol_error">the helper sent data this app does not understand. Update both apps.</string>
-    <string name="drop_network_error">the USB network connection failed.</string>
+    <string name="drop_network_error">the network connection failed.</string>
     <string name="card_bt_off_title">Bluetooth is off</string>
     <string name="card_bt_off_body">Turn on Bluetooth to use PadLink as a wireless mouse and pen.</string>
     <string name="card_permission_title">Permission needed</string>
     <string name="card_permission_body">PadLink needs the Nearby devices permission to act as a Bluetooth mouse.</string>
     <string name="card_bt_unsupported_title">Bluetooth not available</string>
-    <string name="card_bt_unsupported_body">This device has no Bluetooth. Use one of the USB modes instead.</string>
+    <string name="card_bt_unsupported_body">This device has no Bluetooth. Use one of the USB or Wi-Fi modes instead.</string>
     <string name="card_hid_title">Bluetooth mouse mode unavailable</string>
     <string name="card_hid_body">This phone did not allow PadLink to register as a Classic Bluetooth mouse. Another app may be using it. Bluetooth Low Energy mode usually works instead.</string>
     <string name="card_ble_title">Bluetooth LE advertising failed</string>
     <string name="card_ble_body">The phone could not advertise PadLink over Bluetooth Low Energy. Turn Bluetooth off and on, then tap Connect.</string>
     <string name="card_tether_off_title">USB tethering is off</string>
     <string name="card_tether_off_body">Connect the USB cable and turn on USB tethering, then start PadLink Helper on the computer.</string>
+    <string name="card_hotspot_off_title">Mobile Hotspot is off</string>
+    <string name="card_hotspot_off_body">Turn on Mobile Hotspot, connect the computer\'s Wi-Fi to it, then start PadLink Helper. For smoother tracking, set the hotspot band to 5 GHz in its settings.</string>
     <string name="card_port_title">Connection port busy</string>
     <string name="card_port_body">Another app is using TCP port 47800 on this phone. Close it and PadLink retries automatically.</string>
 
@@ -71,7 +77,7 @@
     <string name="action_bluetooth_settings">Bluetooth settings</string>
     <string name="action_grant">Grant</string>
     <string name="action_use_ble">Use Bluetooth LE</string>
-    <string name="action_tether_settings">Tethering settings</string>
+    <string name="action_tether_settings">Hotspot and tethering</string>
     <string name="action_got_it">Got it</string>
     <string name="action_forget_helpers">Forget approved computers</string>
 
@@ -81,7 +87,7 @@
 
     <!-- Pairing -->
     <string name="pairing_title">Allow this computer?</string>
-    <string name="pairing_body">%1$s wants to control this phone\'s trackpad over USB tethering. Approve only if the computer shows the same code.</string>
+    <string name="pairing_body">%1$s wants to control this phone\'s trackpad. Approve only if the computer shows the same code.</string>
     <string name="pairing_approve">Approve</string>
     <string name="pairing_deny">Deny</string>
 
@@ -132,8 +138,8 @@
     <string name="bt_mode_classic">Classic</string>
     <string name="bt_mode_ble">Low Energy</string>
     <string name="bt_mode_help">Automatic uses Classic Bluetooth and switches to Low Energy when this phone does not allow Classic mouse mode.</string>
-    <string name="wired_help_title">USB connection</string>
-    <string name="wired_help_body">Install PadLink Helper on the Windows computer. USB (ADB) needs USB debugging; USB (Tethering) needs USB tethering and a one-time approval.</string>
+    <string name="wired_help_title">USB and Wi-Fi connection</string>
+    <string name="wired_help_body">Install PadLink Helper on the Windows computer. USB (ADB) needs USB debugging; USB (Tethering) needs USB tethering and a one-time approval; Wi-Fi (Phone hotspot) needs the computer joined to this phone\'s hotspot and a one-time approval.</string>
 
     <!-- Display settings -->
     <string name="setting_haptics">Touch vibrations</string>

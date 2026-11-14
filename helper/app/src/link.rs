@@ -1,4 +1,4 @@
-//! link.rs: connects to the phone over adb or tethering, runs the handshake and keepalive, and feeds the injector.
+//! link.rs: connects to the phone over adb, tethering, or its Wi-Fi hotspot, runs the handshake and keepalive, and feeds the injector.
 
 use crate::pen::Rect;
 use crate::store::Mode;
@@ -47,7 +47,7 @@ pub enum Status {
 
 /// State shared between the tray thread and the link thread.
 pub struct Shared {
-    /// Selected USB path.
+    /// Selected path to the phone.
     pub mode: Mutex<Mode>,
     /// Pen target monitor rectangle and size reported to the phone.
     pub target: Mutex<Rect>,
@@ -120,6 +120,7 @@ fn endpoint(mode: Mode) -> Result<SocketAddr, String> {
     match mode {
         Mode::Adb => crate::adb::prepare_forward().map(|(addr, _)| addr).map_err(|e| e.to_string()),
         Mode::Tether => tether_endpoint(),
+        Mode::Hotspot => hotspot_endpoint(),
     }
 }
 
@@ -133,6 +134,29 @@ fn tether_endpoint() -> Result<SocketAddr, String> {
 #[cfg(not(windows))]
 fn tether_endpoint() -> Result<SocketAddr, String> {
     Err(crate::tether::TetherError::NoAdapter.to_string())
+}
+
+/// Hotspot endpoint: the gateway of the Wi-Fi adapter (Windows adapter lookup).
+#[cfg(windows)]
+fn hotspot_endpoint() -> Result<SocketAddr, String> {
+    crate::tether::hotspot_gateway().map_err(|e| e.to_string())
+}
+
+/// Hotspot endpoint on platforms without adapter lookup.
+#[cfg(not(windows))]
+fn hotspot_endpoint() -> Result<SocketAddr, String> {
+    Err(crate::tether::TetherError::NoWifi.to_string())
+}
+
+/// Tray text when the endpoint exists but nothing accepts the connection. In hotspot mode the
+/// Wi-Fi gateway is usually a home router rather than the phone.
+fn connect_failure(mode: Mode, addr: SocketAddr) -> String {
+    match mode {
+        Mode::Hotspot => format!(
+            "this Wi-Fi network is not the phone's hotspot, or PadLink is not set to Wi-Fi (Phone hotspot) [{addr}]"
+        ),
+        _ => format!("start PadLink on the phone and pick this USB mode [{addr}]"),
+    }
 }
 
 /// Link thread body: connect, run a session, release input, retry, until `shared.stop`.
@@ -151,9 +175,7 @@ pub fn run(shared: &Shared, identity: &Identity, injector: &mut dyn Injector, on
         let stream = match TcpStream::connect_timeout(&addr, CONNECT_TIMEOUT) {
             Ok(s) => s,
             Err(_) => {
-                shared.set_status(Status::Searching(format!(
-                    "start PadLink on the phone and pick this USB mode [{addr}]"
-                )));
+                shared.set_status(Status::Searching(connect_failure(mode, addr)));
                 sleep_unless_stopped(shared, RETRY_DELAY);
                 continue;
             }
@@ -557,6 +579,16 @@ mod tests {
         assert!(drop_reason(&End::Closed, false).contains("handshake"));
         assert!(drop_reason(&End::Timeout, true).contains("3 s"));
         assert!(drop_reason(&End::Io("reset".into()), true).contains("reset"));
+    }
+
+    /// A refused connection in hotspot mode points at the wrong Wi-Fi network; USB modes keep the USB hint.
+    #[test]
+    fn connect_failure_names_the_network() {
+        let addr: SocketAddr = "192.168.1.1:47800".parse().unwrap();
+        let hotspot = connect_failure(Mode::Hotspot, addr);
+        assert!(hotspot.contains("not the phone's hotspot"));
+        assert!(hotspot.contains("192.168.1.1:47800"));
+        assert!(connect_failure(Mode::Tether, addr).contains("USB mode"));
     }
 
     /// A silent phone times out instead of hanging.

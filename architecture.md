@@ -12,7 +12,7 @@ PadLink turns an Android phone (tuned for Galaxy S Ultra devices) into a virtual
 
 - **Android app** (`android/`): captures finger and S Pen input, converts it into the shared input model, and sends it over one active transport.
 - **Bluetooth host**: any computer that pairs with the phone. It receives standard HID reports and needs no PadLink software.
-- **Windows helper** (`helper/`): a Rust tray program that receives the wired protocol over USB and injects mouse and pen input into Windows.
+- **Windows helper** (`helper/`): a Rust tray program that receives the wired protocol over USB or the phone's Wi-Fi hotspot and injects mouse and pen input into Windows.
 - **Excluded**: keyboard input screens, multimedia controls, air mouse, mouse jiggler, macOS or Linux helpers, and rooted USB gadget mode.
 
 ## Component model
@@ -33,7 +33,7 @@ flowchart LR
   end
   Classic --> BtHost[Bluetooth host]
   Ble --> BtHost
-  Wired -->|"USB: adb forward or tethering"| Helper[Windows helper]
+  Wired -->|"USB: adb forward or tethering; Wi-Fi: phone hotspot"| Helper[Windows helper]
 ```
 
 Dependency direction is strictly left to right: UI depends on input, input depends on the transport interface, and transports depend only on the encoders in `hid/` and `wire/`. Transports never call back into UI code; they publish state through flows.
@@ -98,10 +98,12 @@ The wired link is a single TCP connection. The phone is always the server on por
 
 ### Transport selection
 
-- The user picks one transport in the header picker: **Bluetooth** (a bonded host), **USB (ADB)**, or **USB (Tethering)**. Only one transport is active at a time; switching stops the previous one first.
+- The user picks one transport in the header picker: **Bluetooth** (a bonded host), **USB (ADB)**, **USB (Tethering)**, or **Wi-Fi (Phone hotspot)**. Only one transport is active at a time; switching stops the previous one first.
 - Bluetooth sub-mode (setting `bt_mode`): `auto` tries Classic HID and falls back to BLE when the HID Device profile proxy is unavailable or app registration fails; `classic` and `ble` force one stack.
 - USB (ADB): the server binds to loopback only; the helper runs `adb forward tcp:47800 tcp:47800`.
-- USB (Tethering): the server binds the IPv4 address of the USB tether interface (`rndis*`, `ncm*`, `usb*`), and the helper connects to its tether adapter's gateway. A second listener on loopback accepts a helper that arrives through `adb forward`; that helper skips pairing, because USB debugging authorization already vouches for the computer. The phone never listens on other interfaces.
+- USB (Tethering): the server binds the IPv4 address of the USB tether interface (`rndis*`, `ncm*`, `usb*`), and the helper connects to its tether adapter's gateway. A second listener on loopback accepts a helper that arrives through `adb forward`; that helper skips pairing, because USB debugging authorization already vouches for the computer.
+- Wi-Fi (Phone hotspot): the PC joins the phone's Mobile Hotspot. The server binds only the IPv4 address of the hotspot interface (`swlan*`, `softap*`, `ap*`, `wlan1` and up; never `wlan0`, the phone's own Wi-Fi client), and the helper connects to its Wi-Fi adapter's gateway. There is no loopback listener in this mode. The helper makes an outbound connection, so Windows needs no firewall rule or admin rights. Shared networks such as a home router are not supported: the protocol is unencrypted and has no discovery.
+- The phone never listens on any interface other than the ones named for the active mode.
 
 ### Connection state model
 
@@ -138,12 +140,12 @@ Settings are one `SharedPreferences` file named `settings`, owned by `android/ap
 | `haptic_feedback` | boolean | true |
 | `keep_screen_on` | boolean | false |
 
-New keys: `transport` (`bluetooth`/`usb_adb`/`usb_tether`, default `bluetooth`), `bt_mode` (`auto`/`classic`/`ble`, default `auto`), `bt_target` (device address), `pen_mode` (`tablet`/`pointer`, default `tablet`), `pen_aspect` (`auto`/`16:9`/`16:10`/`3:2`/`21:9`/`stretch`, default `auto`), `pen_area` (int 50..100, default 100), `pen_pressure` (`soft`/`normal`/`firm`, default `normal`), `pen_side_button` (`barrel`/`eraser`, default `barrel`), `approved_helpers` (string set of hex tokens), `samsung_hint_dismissed` (boolean, default false).
+New keys: `transport` (`bluetooth`/`usb_adb`/`usb_tether`/`wifi_hotspot`, default `bluetooth`), `bt_mode` (`auto`/`classic`/`ble`, default `auto`), `bt_target` (device address), `pen_mode` (`tablet`/`pointer`, default `tablet`), `pen_aspect` (`auto`/`16:9`/`16:10`/`3:2`/`21:9`/`stretch`, default `auto`), `pen_area` (int 50..100, default 100), `pen_pressure` (`soft`/`normal`/`firm`, default `normal`), `pen_side_button` (`barrel`/`eraser`, default `barrel`), `approved_helpers` (string set of hex tokens), `samsung_hint_dismissed` (boolean, default false).
 
 ### Wired pairing and trust
 
 - ADB links need no PadLink pairing: USB debugging authorization already proves physical access.
-- Tethering links require approval. The helper keeps a random 16-byte token in `%APPDATA%\PadLink\helper-token`. If the token is not in `approved_helpers`, the phone answers Welcome status 1, sends PairCode, and shows an approval dialog with the same six-digit code the helper displays. Approval stores the token and sends Welcome status 0; denial sends status 2 and closes.
+- Tethering and hotspot links require approval; both share one `approved_helpers` set, so a computer approved over one is trusted over the other. The helper keeps a random 16-byte token in `%APPDATA%\PadLink\helper-token`. If the token is not in `approved_helpers`, the phone answers Welcome status 1, sends PairCode, and shows an approval dialog with the same six-digit code the helper displays. Approval stores the token and sends Welcome status 0; denial sends status 2 and closes.
 - While pairing is pending, the helper sends nothing and suspends Ping and its link timeout until the final Welcome. The phone treats any received byte or a closed socket as cancellation and gives up after 60 s.
 
 ## Cross-cutting flows
@@ -167,7 +169,7 @@ sequenceDiagram
 
 - GitHub Actions CI is the only build authority (see [CI pipeline](blueprints/ci-pipeline.md)).
 - Unit tests establish: gesture, acceleration, stylus routing and mapping, outbox merging, HID descriptor sizes and report encoding, and wired codec golden vectors (Kotlin and Rust).
-- Radio, USB, and Windows injection behavior can only be verified on real hardware; blueprints record those results as manual acceptance.
+- Radio, USB, Wi-Fi hotspot, and Windows injection behavior can only be verified on real hardware; blueprints record those results as manual acceptance.
 
 ## Feature blueprints
 

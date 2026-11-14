@@ -20,6 +20,7 @@ import androidx.compose.material.icons.outlined.Bluetooth
 import androidx.compose.material.icons.outlined.Draw
 import androidx.compose.material.icons.outlined.Settings
 import androidx.compose.material.icons.outlined.Usb
+import androidx.compose.material.icons.outlined.Wifi
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -166,6 +167,7 @@ private fun TransportPicker(
             ?: stringResource(R.string.transport_bluetooth)
         TransportKind.USB_ADB -> link.targetName ?: stringResource(R.string.transport_usb_adb)
         TransportKind.USB_TETHER -> link.targetName ?: stringResource(R.string.transport_usb_tether)
+        TransportKind.WIFI_HOTSPOT -> link.targetName ?: stringResource(R.string.transport_wifi_hotspot)
     }
     Box {
         Row(
@@ -224,10 +226,13 @@ private fun TransportPicker(
             for ((kind, label) in listOf(
                 TransportKind.USB_ADB to R.string.transport_usb_adb,
                 TransportKind.USB_TETHER to R.string.transport_usb_tether,
+                TransportKind.WIFI_HOTSPOT to R.string.transport_wifi_hotspot,
             )) {
                 DropdownMenuItem(
                     text = { Text(stringResource(label)) },
-                    leadingIcon = { Icon(Icons.Outlined.Usb, null) },
+                    leadingIcon = {
+                        Icon(if (kind == TransportKind.WIFI_HOTSPOT) Icons.Outlined.Wifi else Icons.Outlined.Usb, null)
+                    },
                     trailingIcon = { if (connection.transport == kind) Icon(Icons.Filled.Check, null) },
                     onClick = {
                         open = false

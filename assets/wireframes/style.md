@@ -45,6 +45,7 @@ Draw the **light theme**. Dark theme is drawn only when a task asks for it, usin
 | `secondaryContainer` | `#E8DEF8` | baseline | Selected filter chip, slider inactive track, Samsung hint card |
 | `onSecondaryContainer` | `#1D192B` | baseline | Selected filter chip label |
 | `surfaceContainerLow` | `#F7F2FA` | baseline | Modal bottom sheet |
+| `surfaceContainer` | `#F3EDF7` | baseline | Dropdown menu |
 | `surfaceContainerHighest` | `#E6E0E9` | baseline | Switch off track |
 | `outline` | `#79747E` | baseline | Switch off border and thumb, outlined button border |
 | `outlineVariant` | `#CAC4D0` | baseline | Dividers, unselected chip border |
@@ -106,6 +107,7 @@ All sizes in dp.
 - **Divider**: 1 dp `outlineVariant`, full content width.
 - **Outlined button**: 48 tall slot, visible 40 tall, fully rounded, 1 dp `outline` border, 24 dp horizontal padding, `labelLarge` `primary` label.
 - **Card**: radius 12, 16 dp padding, 6 dp gaps, `titleSmall` semibold title and `bodyMedium` body; actions are right-aligned text buttons.
+- **Dropdown menu** (transport picker): anchored at the left of the subtitle row, directly below it. `surfaceContainer` fill, radius 4, 8 dp vertical padding, width of the widest item. Section label `labelMedium` (12 / 16, 500) with 16 dp horizontal and 8 dp vertical padding. Items 48 tall, 12 dp horizontal padding, `labelLarge` `onSurface` text; 24 dp leading and trailing icons in `onSurfaceVariant` with 12 dp gaps to the text. Full-width 1 dp `outlineVariant` divider between sections.
 
 ## Icons
 
@@ -137,6 +139,7 @@ All sizes in dp.
 | File | Screen |
 |---|---|
 | `main-connected.svg` | Mouse screen, connected over any transport |
+| `main-transport-picker.svg` | Mouse screen with the transport picker open, Wi-Fi (Phone hotspot) selected |
 | `pen-canvas-drawing.svg` | Pen canvas (landscape) in tablet mode with an ink trail |
 | `settings-mouse.svg` | Settings sheet, Mouse tab, full view |
 | `settings-pen.svg` | Settings sheet, Pen tab, full view |

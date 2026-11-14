@@ -5,13 +5,15 @@ use std::fs;
 use std::io;
 use std::path::{Path, PathBuf};
 
-/// Which USB path the helper uses.
+/// Which path to the phone the helper uses.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Mode {
     /// `adb forward` over USB debugging.
     Adb,
     /// Direct TCP over the USB tethering network.
     Tether,
+    /// Direct TCP over the phone's Wi-Fi hotspot that this PC has joined.
+    Hotspot,
 }
 
 impl Mode {
@@ -20,15 +22,25 @@ impl Mode {
         match self {
             Mode::Adb => "adb",
             Mode::Tether => "tether",
+            Mode::Hotspot => "hotspot",
+        }
+    }
+
+    /// Menu and status label.
+    pub fn label(self) -> &'static str {
+        match self {
+            Mode::Adb => "USB (ADB)",
+            Mode::Tether => "USB (Tethering)",
+            Mode::Hotspot => "Wi-Fi (Phone hotspot)",
         }
     }
 
     /// Parses a persisted key, defaulting to ADB.
     pub fn from_key(s: &str) -> Mode {
-        if s.trim() == "tether" {
-            Mode::Tether
-        } else {
-            Mode::Adb
+        match s.trim() {
+            "tether" => Mode::Tether,
+            "hotspot" => Mode::Hotspot,
+            _ => Mode::Adb,
         }
     }
 }
@@ -36,7 +48,7 @@ impl Mode {
 /// Persisted helper settings.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct HelperConfig {
-    /// Selected USB path.
+    /// Selected path to the phone.
     pub mode: Mode,
     /// Device name of the pen target monitor (`\\.\DISPLAY1`); `None` means the primary monitor.
     pub monitor: Option<String>,
@@ -140,6 +152,9 @@ mod tests {
     fn config_round_trip() {
         let cfg = HelperConfig { mode: Mode::Tether, monitor: Some(r"\\.\DISPLAY2".into()) };
         assert_eq!(HelperConfig::parse(&cfg.render()), cfg);
+        let hotspot = HelperConfig { mode: Mode::Hotspot, monitor: None };
+        assert_eq!(HelperConfig::parse(&hotspot.render()), hotspot);
+        assert!(hotspot.render().contains("mode=hotspot"));
         assert_eq!(HelperConfig::parse("mode=adb\nmonitor=\n"), HelperConfig::default());
         assert_eq!(HelperConfig::parse("garbage"), HelperConfig::default());
     }

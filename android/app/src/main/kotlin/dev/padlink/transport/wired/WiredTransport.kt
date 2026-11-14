@@ -1,4 +1,4 @@
-// WiredTransport.kt: TCP server for the Windows helper over adb forward (loopback) or USB tethering.
+// WiredTransport.kt: TCP server for the Windows helper over adb forward (loopback), USB tethering, or the phone's Wi-Fi hotspot.
 package dev.padlink.transport.wired
 
 import android.util.Log
@@ -34,19 +34,25 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 
-/** Which USB path the wired server listens on. */
-enum class WiredMode { ADB, TETHER }
+/** Which network path the helper server listens on. */
+enum class WiredMode { ADB, TETHER, HOTSPOT }
 
 /**
- * Wired transport: the phone is the TCP server on [WireCodec.PORT]. ADB mode binds loopback (the
- * helper uses `adb forward`); tethering mode binds the USB tether interface and requires pairing.
+ * Helper transport: the phone is the TCP server on [WireCodec.PORT]. ADB mode binds loopback (the
+ * helper uses `adb forward`); tethering mode binds the USB tether interface and hotspot mode binds
+ * the Wi-Fi hotspot interface, and both require pairing.
  */
 class WiredTransport(
     private val mode: WiredMode,
     private val settings: SettingsStore,
 ) : Transport {
 
-    private val stack = if (mode == WiredMode.ADB) TransportStack.USB_ADB else TransportStack.USB_TETHER
+    private val stack = when (mode) {
+        WiredMode.ADB -> TransportStack.USB_ADB
+        WiredMode.TETHER -> TransportStack.USB_TETHER
+        WiredMode.HOTSPOT -> TransportStack.WIFI_HOTSPOT
+    }
+    private val offIssue = if (mode == WiredMode.HOTSPOT) LinkIssue.HOTSPOT_OFF else LinkIssue.TETHER_OFF
     private val _state = MutableStateFlow(LinkState(LinkStatus.CONNECTING, stack, issue = LinkIssue.WAITING_FOR_HELPER))
     override val state: StateFlow<LinkState> = _state.asStateFlow()
 
@@ -60,6 +66,7 @@ class WiredTransport(
     @Volatile private var serverIssue: LinkIssue? = null
     @Volatile private var pendingDecision: ArrayBlockingQueue<Boolean>? = null
     @Volatile private var lastDrop: LinkDrop? = null
+    @Volatile private var listenAddress: String? = null
     private val serverThreads = mutableListOf<Thread>()
 
     /** One accepted helper connection with serialized writes. */
@@ -94,6 +101,7 @@ class WiredTransport(
     /**
      * Starts the accept loops. ADB mode listens on loopback. Tethering mode listens on the tether
      * interface address and also on loopback, so a helper that arrives through `adb forward` works too.
+     * Hotspot mode listens only on the hotspot interface address.
      */
     override fun start() {
         if (running) return
@@ -105,6 +113,8 @@ class WiredTransport(
                 startLoop("wired-server") { serverLoop(TetherInterfaces::findAddress, reportIssues = true) }
                 startLoop("wired-adb") { serverLoop({ loopback }, reportIssues = false) }
             }
+            WiredMode.HOTSPOT ->
+                startLoop("wired-hotspot") { serverLoop(TetherInterfaces::findHotspotAddress, reportIssues = true) }
         }
     }
 
@@ -150,14 +160,15 @@ class WiredTransport(
 
     /**
      * Binds the address [addressOf] returns and accepts helpers, rebinding when that address
-     * changes. Only the primary loop ([reportIssues]) drives the tethering-off and port-in-use hints.
+     * changes. Only the primary loop ([reportIssues]) drives the interface-off and port-in-use hints.
      */
     private fun serverLoop(addressOf: () -> InetAddress?, reportIssues: Boolean) {
         while (running) {
             val address = addressOf()
             if (address == null) {
                 if (reportIssues) {
-                    serverIssue = LinkIssue.TETHER_OFF
+                    serverIssue = offIssue
+                    listenAddress = null
                     publishCurrent()
                 }
                 if (!sleepQuietly(RESCAN_MS)) return
@@ -182,6 +193,7 @@ class WiredTransport(
             if (!running) runCatching { server.close() }
             if (reportIssues) {
                 serverIssue = null
+                if (mode == WiredMode.HOTSPOT) listenAddress = address.hostAddress
                 publishCurrent()
             }
             Log.i(TAG, "listening on ${address.hostAddress}:${WireCodec.PORT}")
@@ -375,7 +387,13 @@ class WiredTransport(
         _state.value = when {
             s != null -> LinkState(LinkStatus.CONNECTED, stack, targetName = s.name, hostSize = s.hostSize)
             serverIssue != null -> LinkState(LinkStatus.UNAVAILABLE, stack, issue = serverIssue)
-            else -> LinkState(LinkStatus.CONNECTING, stack, issue = LinkIssue.WAITING_FOR_HELPER, lastDrop = lastDrop)
+            else -> LinkState(
+                LinkStatus.CONNECTING,
+                stack,
+                issue = LinkIssue.WAITING_FOR_HELPER,
+                lastDrop = lastDrop,
+                listenAddress = listenAddress,
+            )
         }
     }
 

@@ -46,7 +46,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     /** Selects Bluetooth with [host] as the target. */
     fun selectBluetooth(host: BtHost) = store.selectTransport(TransportKind.BLUETOOTH, host.address)
 
-    /** Selects a wired transport. */
+    /** Selects a helper transport (USB or Wi-Fi hotspot). */
     fun selectWired(kind: TransportKind) = store.selectTransport(kind)
 
     /** Changes the Bluetooth stack preference. */

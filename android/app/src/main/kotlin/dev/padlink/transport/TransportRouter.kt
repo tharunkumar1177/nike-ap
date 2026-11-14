@@ -99,6 +99,7 @@ class TransportRouter(private val context: Context, private val settings: Settin
         }
         TransportKind.USB_ADB -> WiredTransport(WiredMode.ADB, settings)
         TransportKind.USB_TETHER -> WiredTransport(WiredMode.TETHER, settings)
+        TransportKind.WIFI_HOTSPOT -> WiredTransport(WiredMode.HOTSPOT, settings)
     }
 
     /** Starts [transport], mirrors its state, and watches for an automatic BLE fallback. */

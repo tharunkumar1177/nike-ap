@@ -44,18 +44,20 @@
 
       <rect id="divider" x="20" y="260" width="350" height="1" fill="#CAC4D0"/>
 
-      <g id="usb-connection">
-        <text x="20" y="285.8" font-size="14" font-weight="500">USB connection</text>
+      <g id="usb-wifi-connection">
+        <text x="20" y="285.8" font-size="14" font-weight="500">USB and Wi-Fi connection</text>
         <g font-size="12">
           <text x="20" y="313.1">Install PadLink Helper on the Windows computer. USB (ADB)</text>
           <text x="20" y="329.1">needs USB debugging; USB (Tethering) needs USB tethering</text>
-          <text x="20" y="345.1">and a one-time approval.</text>
+          <text x="20" y="345.1">and a one-time approval; Wi-Fi (Phone hotspot) needs the</text>
+          <text x="20" y="361.1">computer joined to this phone's hotspot and a one-time</text>
+          <text x="20" y="377.1">approval.</text>
         </g>
       </g>
 
       <g id="forget-approved-computers">
-        <rect x="20.5" y="363.5" width="225" height="39" rx="19.5" fill="none" stroke="#79747E"/>
-        <text x="133" y="387.8" font-size="14" font-weight="500" fill="#00658F" text-anchor="middle">Forget approved computers</text>
+        <rect x="20.5" y="395.5" width="225" height="39" rx="19.5" fill="none" stroke="#79747E"/>
+        <text x="133" y="419.8" font-size="14" font-weight="500" fill="#00658F" text-anchor="middle">Forget approved computers</text>
       </g>
     </g>
   </g>
