@@ -37,6 +37,7 @@ The protocol crate, the ADB, tethering, and hotspot connection paths, mouse and 
 ### Required
 
 - [wired-usb-transport](wired-usb-transport.md): the phone side defines when the server is reachable and how pairing is approved.
+- [wifi-transport](wifi-transport.md): the phone side of hotspot mode defines which address the helper reaches as its Wi-Fi gateway.
 
 ### Impact checks
 
