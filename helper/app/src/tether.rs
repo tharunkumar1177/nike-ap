@@ -40,27 +40,35 @@ pub fn is_wifi_adapter(is_80211: bool, description: &str) -> bool {
     is_80211 && !d.contains("virtual") && !d.contains("wi-fi direct")
 }
 
-/// IPv4 gateway (the phone) of the first up tethering adapter.
-#[cfg(windows)]
-pub fn gateway() -> Result<std::net::SocketAddr, TetherError> {
-    first_gateway(|a| is_tether_adapter(a.description(), a.friendly_name()), TetherError::NoAdapter)
+/// Where to reach the phone on one adapter: its gateway on the protocol port, and this PC's own
+/// IPv4 address on that adapter, which the helper binds so traffic cannot leave through another
+/// adapter (a VPN or office network that also routes 10.x addresses).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct Route {
+    /// The phone.
+    pub gateway: std::net::SocketAddr,
+    /// This PC's address on the same adapter.
+    pub local: std::net::IpAddr,
 }
 
-/// IPv4 gateway of the first up Wi-Fi adapter; the phone when this PC is joined to its hotspot.
+/// Route to the phone over the first up tethering adapter.
 #[cfg(windows)]
-pub fn hotspot_gateway() -> Result<std::net::SocketAddr, TetherError> {
-    first_gateway(
+pub fn gateway() -> Result<Route, TetherError> {
+    first_route(|a| is_tether_adapter(a.description(), a.friendly_name()), TetherError::NoAdapter)
+}
+
+/// Route over the first up Wi-Fi adapter; its gateway is the phone when this PC is joined to its hotspot.
+#[cfg(windows)]
+pub fn hotspot_gateway() -> Result<Route, TetherError> {
+    first_route(
         |a| is_wifi_adapter(a.if_type() == ipconfig::IfType::Ieee80211, a.description()),
         TetherError::NoWifi,
     )
 }
 
-/// IPv4 gateway of the first up adapter accepted by `accept`, on the protocol port; `missing` otherwise.
+/// Route over the first up adapter accepted by `accept` that has an IPv4 gateway and address; `missing` otherwise.
 #[cfg(windows)]
-fn first_gateway(
-    accept: impl Fn(&ipconfig::Adapter) -> bool,
-    missing: TetherError,
-) -> Result<std::net::SocketAddr, TetherError> {
+fn first_route(accept: impl Fn(&ipconfig::Adapter) -> bool, missing: TetherError) -> Result<Route, TetherError> {
     use ipconfig::OperStatus;
     use std::net::IpAddr;
     let adapters = ipconfig::get_adapters().map_err(|e| TetherError::Failed(e.to_string()))?;
@@ -68,8 +76,11 @@ fn first_gateway(
         .iter()
         .filter(|a| a.oper_status() == OperStatus::IfOperStatusUp)
         .filter(|a| accept(a))
-        .find_map(|a| a.gateways().iter().find(|g| matches!(g, IpAddr::V4(_))).copied())
-        .map(|ip| std::net::SocketAddr::new(ip, padlink_protocol::PORT))
+        .find_map(|a| {
+            let gateway = a.gateways().iter().find(|g| matches!(g, IpAddr::V4(_))).copied()?;
+            let local = a.ip_addresses().iter().find(|ip| matches!(ip, IpAddr::V4(_))).copied()?;
+            Some(Route { gateway: std::net::SocketAddr::new(gateway, padlink_protocol::PORT), local })
+        })
         .ok_or(missing)
 }
 

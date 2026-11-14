@@ -26,6 +26,7 @@ Without a cable, the phone serves the wired protocol over its own Mobile Hotspot
 - There is no loopback listener in this mode, so a helper using `adb forward` cannot connect and every hotspot connection needs approval.
 - While the server listens, `LinkState.listenAddress` carries the bound address, and the waiting card shows it as "Hotspot address" so the user can match it with the address in the helper's tray text.
 - Guidance: `HOTSPOT_OFF` shows "Mobile Hotspot is off" with a button to the system hotspot and tethering screen. The waiting card and the off card both recommend the 5 GHz hotspot band, because 2.4 GHz adds noticeable jitter to pointer motion. The band itself is a system setting; the app does not read or change it.
+- Company PCs often route `10.x` addresses through a VPN or zero-trust agent, and Samsung often picks a `10.x` hotspot subnet. When the helper reports "closed before the phone answered" and the phone's card still says no computer has reached it, the connection never left the PC. The helper's adapter binding is the mitigation; the shared "not reached" indicator is described in [wired-usb-transport](wired-usb-transport.md).
 - The picker labels the mode "Wi-Fi (Phone hotspot)" with the Wi-Fi icon, matching the helper's tray item.
 
 ## Related blueprints
@@ -57,5 +58,6 @@ Without a cable, the phone serves the wired protocol over its own Mobile Hotspot
 
 - Hotspot interface names vary by vendor and Android version. On a phone whose hotspot uses another name, the card stays on "Mobile Hotspot is off" (unverified beyond the listed names).
 - On phones that use `wlan1` for a second Wi-Fi client (dual-band client mode), this mode could bind that client interface instead (unverified).
+- First field report: the helper reached `10.83.23.214:47800` and the connection closed before any reply while the phone kept waiting. That points to interception on the PC; whether adapter binding fixes it is unverified.
 - Latency and jitter on 2.4 GHz versus 5 GHz have not been measured.
 - Shared-router mode (discovery plus an encrypted, mutually authenticated link) and Wi-Fi Direct are not planned yet.

@@ -47,6 +47,7 @@
     <string name="card_hotspot_title">Waiting for PadLink Helper</string>
     <string name="card_hotspot_body">Mobile Hotspot is on. Connect the computer\'s Wi-Fi to this hotspot, set PadLink Helper to Wi-Fi (Phone hotspot), and approve it the first time. A 5 GHz hotspot band tracks more smoothly than 2.4 GHz.</string>
     <string name="hotspot_address">Hotspot address: %1$s</string>
+    <string name="helper_not_reached">No computer has reached this phone yet. If PadLink Helper shows this phone\'s address and still cannot connect, a VPN or security software on the computer is blocking the connection.</string>
     <string name="drop_connected">Last connection from %1$s ended: %2$s</string>
     <string name="drop_attempt">Last attempt from %1$s failed: %2$s</string>
     <string name="drop_helper_silent">the computer stopped sending data for 3 seconds.</string>

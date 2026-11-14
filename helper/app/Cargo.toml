@@ -9,6 +9,7 @@ publish.workspace = true
 [dependencies]
 padlink-protocol = { path = "../protocol" }
 getrandom = "0.3"
+socket2 = "0.5"
 
 [target.'cfg(windows)'.dependencies]
 ipconfig = "0.3"

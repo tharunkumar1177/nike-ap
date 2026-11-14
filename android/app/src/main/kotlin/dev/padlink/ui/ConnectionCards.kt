@@ -127,6 +127,11 @@ fun ConnectionInfoCard(
             link.listenAddress?.takeIf { link.issue == LinkIssue.WAITING_FOR_HELPER }?.let { address ->
                 Text(stringResource(R.string.hotspot_address, address), style = MaterialTheme.typography.bodySmall)
             }
+            if (link.issue == LinkIssue.WAITING_FOR_HELPER && !link.helperReached &&
+                connection.transport != TransportKind.USB_ADB
+            ) {
+                Text(stringResource(R.string.helper_not_reached), style = MaterialTheme.typography.bodySmall)
+            }
             link.lastDrop?.takeIf { link.issue == LinkIssue.WAITING_FOR_HELPER }?.let { drop ->
                 Text(
                     stringResource(

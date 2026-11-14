@@ -67,6 +67,7 @@ class WiredTransport(
     @Volatile private var pendingDecision: ArrayBlockingQueue<Boolean>? = null
     @Volatile private var lastDrop: LinkDrop? = null
     @Volatile private var listenAddress: String? = null
+    @Volatile private var helperReached = false
     private val serverThreads = mutableListOf<Thread>()
 
     /** One accepted helper connection with serialized writes. */
@@ -220,6 +221,11 @@ class WiredTransport(
 
     /** Runs the handshake, optional pairing, keepalive, and receive loop for one helper. */
     private fun handleClient(socket: Socket) {
+        Log.i(TAG, "connection from ${socket.inetAddress.hostAddress} to ${socket.localAddress.hostAddress}")
+        if (!helperReached) {
+            helperReached = true
+            publishCurrent()
+        }
         val s = try {
             socket.tcpNoDelay = true
             socket.soTimeout = LINK_TIMEOUT_MS
@@ -393,6 +399,7 @@ class WiredTransport(
                 issue = LinkIssue.WAITING_FOR_HELPER,
                 lastDrop = lastDrop,
                 listenAddress = listenAddress,
+                helperReached = helperReached,
             )
         }
     }

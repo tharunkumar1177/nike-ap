@@ -23,6 +23,8 @@ The protocol crate, the ADB, tethering, and hotspot connection paths, mouse and 
 
 - **Mode**: the tray offers "USB (ADB)", "USB (Tethering)", and "Wi-Fi (Phone hotspot)" as exclusive choices, matching the phone's picker. The choice is saved in `%APPDATA%\PadLink\helper.conf` (`mode=adb|tether|hotspot`) next to the token. Changing it drops the current session.
 - **Connect loop** (retry every second while disconnected): in ADB mode, find `adb.exe` next to the helper, then in its `platform-tools` subfolder, then on `PATH`. Pick the first device in the `device` state, or report "unauthorized" or "no phone", run `adb forward tcp:47800 tcp:47800`, and connect to `127.0.0.1`. In tethering mode, connect to the gateway of any adapter that is up and whose description matches RNDIS, NCM, or "Remote NDIS". In hotspot mode, connect to the IPv4 gateway of the first up IEEE 802.11 adapter, skipping Wi-Fi Direct and other virtual adapters. No Wi-Fi adapter with a gateway reports "connect this PC's Wi-Fi to the phone's hotspot". A refused or timed-out connection reports that the Wi-Fi network is not the phone's hotspot, since the gateway is then usually a home router.
+- **Adapter binding**: in tethering and hotspot modes the helper binds its socket to this PC's IPv4 address on the matched adapter before connecting. Windows then sends the traffic out of that adapter, even when a VPN or office network also routes the phone's address (Samsung often picks `10.x` subnets, which many company networks use).
+- **Unanswered connections**: the phone app always answers Hello. If the socket closes before any frame arrives, the tray says the connection was closed before the phone answered and points at a VPN or security software on the PC, instead of blaming the phone.
 - **Single instance**: a per-user named mutex (`Local\PadLinkHelper`) stops a second copy from starting. Two copies share one token, so each would replace the other's session on the phone in an endless loop.
 - **Disconnect reasons**: the tray says whether a session ended during the handshake or after connecting, and whether the phone closed it, went silent for 3 s, or the socket failed.
 - **Socket reads**: a dedicated thread does blocking reads with no timeout and passes decoded frames to the link loop over a channel. The link loop applies its deadlines (handshake, pairing, 3 s link timeout) to that channel. Never set a receive timeout on the socket. Winsock leaves a socket whose receive timed out in an indeterminate state that can drop bytes, which broke sessions right after pairing.
@@ -52,6 +54,7 @@ None
 
 - [x] Unit tests: golden vectors, mouse transition translation, pen transition translation, coordinate mapping, adb output parsing, tether and Wi-Fi adapter matching, `mode=hotspot` config round-trip, hotspot tray and wrong-network texts.
 - [x] Unit tests: handshake, pairing, and input delivery against a fake phone over loopback TCP, including frames sent one byte at a time across many poll intervals.
+- [x] Unit tests: a peer that closes before answering ends as unanswered with the interception hint; connecting with a bound local address uses that address.
 - [ ] On a Windows PC: cursor, wheel, and pen pressure in OneNote via USB (ADB), USB (Tethering), and Wi-Fi (Phone hotspot).
 
 ## Remaining gaps and unknowns
@@ -59,4 +62,5 @@ None
 - Windows may show a firewall prompt only for inbound sockets; the helper uses outbound connections only, which is expected to avoid it (unverified).
 - Synthetic pen injection needs Windows 10 1809 or later. If the pen device cannot be created, the helper keeps mouse input and drops pen frames without telling the user (untested).
 - With several ADB devices attached, the helper uses the first one in the `device` state. There is no device picker.
+- Security software that intercepts connections at the Windows Filtering Platform level (for example zero-trust agents that capture `10.x` traffic) may still capture the connection despite adapter binding (unverified). The tray and the phone's waiting card make this case visible.
 - With several Wi-Fi adapters up, hotspot mode uses the first one that has a gateway, which may not be the one joined to the phone (untested).

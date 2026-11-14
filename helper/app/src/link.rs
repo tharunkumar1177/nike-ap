@@ -4,7 +4,7 @@ use crate::pen::Rect;
 use crate::store::Mode;
 use padlink_protocol::{encode, status, Frame, FrameDecoder, MouseFrame, PenFrame, TOKEN_LEN, VERSION};
 use std::io::{ErrorKind, Read, Write};
-use std::net::{Shutdown, SocketAddr, TcpStream};
+use std::net::{IpAddr, Shutdown, SocketAddr, TcpStream};
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::mpsc::{self, Receiver, RecvTimeoutError, Sender};
 use std::sync::Mutex;
@@ -105,6 +105,9 @@ enum End {
     Local,
     /// Phone said Bye or closed the socket.
     Closed,
+    /// The socket closed before any frame arrived. The phone app always answers Hello, so this
+    /// means something between the helper and the app accepted and dropped the connection.
+    Unanswered,
     /// Nothing received within the link timeout.
     Timeout,
     /// Phone refused this helper.
@@ -115,10 +118,26 @@ enum End {
     Io(String),
 }
 
+/// Where to connect, and the local address to bind first (tethering and hotspot modes).
+#[derive(Debug, Clone, Copy)]
+struct Endpoint {
+    addr: SocketAddr,
+    local: Option<IpAddr>,
+}
+
+impl From<crate::tether::Route> for Endpoint {
+    /// Connects to the route's gateway from this PC's address on the same adapter.
+    fn from(r: crate::tether::Route) -> Self {
+        Self { addr: r.gateway, local: Some(r.local) }
+    }
+}
+
 /// Resolves where to connect for `mode`.
-fn endpoint(mode: Mode) -> Result<SocketAddr, String> {
+fn endpoint(mode: Mode) -> Result<Endpoint, String> {
     match mode {
-        Mode::Adb => crate::adb::prepare_forward().map(|(addr, _)| addr).map_err(|e| e.to_string()),
+        Mode::Adb => crate::adb::prepare_forward()
+            .map(|(addr, _)| Endpoint { addr, local: None })
+            .map_err(|e| e.to_string()),
         Mode::Tether => tether_endpoint(),
         Mode::Hotspot => hotspot_endpoint(),
     }
@@ -126,26 +145,38 @@ fn endpoint(mode: Mode) -> Result<SocketAddr, String> {
 
 /// Tethering endpoint (Windows adapter lookup).
 #[cfg(windows)]
-fn tether_endpoint() -> Result<SocketAddr, String> {
-    crate::tether::gateway().map_err(|e| e.to_string())
+fn tether_endpoint() -> Result<Endpoint, String> {
+    crate::tether::gateway().map(Endpoint::from).map_err(|e| e.to_string())
 }
 
 /// Tethering endpoint on platforms without adapter lookup.
 #[cfg(not(windows))]
-fn tether_endpoint() -> Result<SocketAddr, String> {
+fn tether_endpoint() -> Result<Endpoint, String> {
     Err(crate::tether::TetherError::NoAdapter.to_string())
 }
 
 /// Hotspot endpoint: the gateway of the Wi-Fi adapter (Windows adapter lookup).
 #[cfg(windows)]
-fn hotspot_endpoint() -> Result<SocketAddr, String> {
-    crate::tether::hotspot_gateway().map_err(|e| e.to_string())
+fn hotspot_endpoint() -> Result<Endpoint, String> {
+    crate::tether::hotspot_gateway().map(Endpoint::from).map_err(|e| e.to_string())
 }
 
 /// Hotspot endpoint on platforms without adapter lookup.
 #[cfg(not(windows))]
-fn hotspot_endpoint() -> Result<SocketAddr, String> {
+fn hotspot_endpoint() -> Result<Endpoint, String> {
     Err(crate::tether::TetherError::NoWifi.to_string())
+}
+
+/// Connects to `ep.addr`, first binding `ep.local` so Windows sends the traffic out of that
+/// adapter instead of any other adapter or VPN that also routes the phone's address.
+fn connect(ep: Endpoint) -> std::io::Result<TcpStream> {
+    use socket2::{Domain, Protocol, SockAddr, Socket, Type};
+    let socket = Socket::new(Domain::for_address(ep.addr), Type::STREAM, Some(Protocol::TCP))?;
+    if let Some(local) = ep.local {
+        socket.bind(&SockAddr::from(SocketAddr::new(local, 0)))?;
+    }
+    socket.connect_timeout(&SockAddr::from(ep.addr), CONNECT_TIMEOUT)?;
+    Ok(socket.into())
 }
 
 /// Tray text when the endpoint exists but nothing accepts the connection. In hotspot mode the
@@ -164,15 +195,16 @@ pub fn run(shared: &Shared, identity: &Identity, injector: &mut dyn Injector, on
     while !shared.stop.load(Ordering::Relaxed) {
         let mode = shared.mode();
         let generation = shared.mode_generation.load(Ordering::Relaxed);
-        let addr = match endpoint(mode) {
-            Ok(a) => a,
+        let ep = match endpoint(mode) {
+            Ok(ep) => ep,
             Err(reason) => {
                 shared.set_status(Status::Searching(reason));
                 sleep_unless_stopped(shared, RETRY_DELAY * 2);
                 continue;
             }
         };
-        let stream = match TcpStream::connect_timeout(&addr, CONNECT_TIMEOUT) {
+        let addr = ep.addr;
+        let stream = match connect(ep) {
             Ok(s) => s,
             Err(_) => {
                 shared.set_status(Status::Searching(connect_failure(mode, addr)));
@@ -198,6 +230,9 @@ pub fn run(shared: &Shared, identity: &Identity, injector: &mut dyn Injector, on
 /// Tray text for a session that ended on its own; `connected` tells whether the handshake had finished.
 fn drop_reason(end: &End, connected: bool) -> String {
     match (end, connected) {
+        (End::Unanswered, _) => "the connection was closed before the phone answered. If the phone shows no attempt \
+             from this PC, a VPN or security software on this PC is intercepting it; retrying"
+            .into(),
         (End::Closed, false) => "the phone closed the connection during the handshake; retrying".into(),
         (End::Timeout, false) => "the phone did not answer the handshake; retrying".into(),
         (End::Closed, true) => "the phone ended the connection; reconnecting".into(),
@@ -370,8 +405,15 @@ fn handshake(
 ) -> Result<(), End> {
     conn.send(&Frame::Hello { version: VERSION, token: identity.token, name: identity.name.clone() })?;
     let mut deadline = Instant::now() + HANDSHAKE_TIMEOUT;
+    let mut answered = false;
     loop {
-        match conn.wait(deadline, shared, generation)? {
+        let frame = match conn.wait(deadline, shared, generation) {
+            Ok(frame) => frame,
+            Err(End::Closed) if !answered => return Err(End::Unanswered),
+            Err(end) => return Err(end),
+        };
+        answered = true;
+        match frame {
             Frame::Welcome { status: status::OK, .. } => return Ok(()),
             Frame::Welcome { status: status::PAIRING, .. } => deadline = Instant::now() + PAIRING_TIMEOUT,
             Frame::Welcome { status: status::VERSION_MISMATCH, .. } => return Err(End::Version),
@@ -579,6 +621,37 @@ mod tests {
         assert!(drop_reason(&End::Closed, false).contains("handshake"));
         assert!(drop_reason(&End::Timeout, true).contains("3 s"));
         assert!(drop_reason(&End::Io("reset".into()), true).contains("reset"));
+    }
+
+    /// A peer that accepts and closes before answering Hello is reported as an interception, not a phone close.
+    #[test]
+    fn close_before_any_frame_is_unanswered() {
+        let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+        let addr = listener.local_addr().unwrap();
+        let phone = std::thread::spawn(move || {
+            let (s, _) = listener.accept().unwrap();
+            drop(s);
+        });
+        let shared = Shared::new(Mode::Hotspot, TARGET);
+        let identity = Identity { token: [0; TOKEN_LEN], name: "PC".into() };
+        let mut rec = Recorder::default();
+        let (end, connected) = session(TcpStream::connect(addr).unwrap(), &shared, &identity, &mut rec, 0, &|_| {});
+        phone.join().unwrap();
+        assert!(matches!(end, End::Unanswered), "{end:?}");
+        assert!(!connected);
+        assert!(drop_reason(&end, connected).contains("VPN or security software"));
+    }
+
+    /// Connecting with a bound local address reaches the server from that address.
+    #[test]
+    fn connect_binds_the_local_address() {
+        let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+        let addr = listener.local_addr().unwrap();
+        let local: IpAddr = "127.0.0.1".parse().unwrap();
+        let stream = connect(Endpoint { addr, local: Some(local) }).unwrap();
+        let (_, peer) = listener.accept().unwrap();
+        assert_eq!(peer.ip(), local);
+        assert_eq!(stream.local_addr().unwrap().ip(), local);
     }
 
     /// A refused connection in hotspot mode points at the wrong Wi-Fi network; USB modes keep the USB hint.

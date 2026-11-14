@@ -23,6 +23,7 @@ The codec, the TCP server, the pairing flow, the keepalive, and the tether inter
 
 - One client at a time; a new client replaces the old one after its Hello is accepted. Only one pairing can be pending; a second unknown helper is rejected while it waits.
 - When a session ends, the transport records why: the helper went silent for 3 s, the helper closed the connection, no Hello arrived, a newer session replaced it, a protocol error, or a socket error. The waiting card shows that reason with the helper's name, and the reason is logged under the `PadLinkWired` tag.
+- Until the first connection reaches the server, `LinkState.helperReached` is false and the tethering and hotspot waiting cards say that no computer has reached the phone yet. This separates connections the PC never delivered (blocked by a VPN or security software) from ones the phone dropped. Each accepted connection is logged with its remote and local addresses under `PadLinkWired`.
 - Socket writes never run on the main thread; `stop()` sends the release frames and Bye from a short-lived thread.
 - Tethering mode rescans network interfaces every 2 s until a tether address exists, and rebinds when it changes. The loopback listener runs alongside it and does not affect the hints.
 - Do not replace the specific-address bind with a wildcard bind plus an interface check. On a Galaxy device that check refused real tethering connections, closing them silently during the handshake.

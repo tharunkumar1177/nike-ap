@@ -70,6 +70,8 @@ data class LinkState(
     val lastDrop: LinkDrop? = null,
     /** Address the helper server listens on (hotspot mode), shown while waiting for the helper. */
     val listenAddress: String? = null,
+    /** False while waiting when no computer has opened a connection to the server since it started. */
+    val helperReached: Boolean = true,
 ) {
     companion object {
         val IDLE = LinkState(LinkStatus.IDLE)
