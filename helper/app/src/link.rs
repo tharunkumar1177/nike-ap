@@ -409,7 +409,7 @@ fn handshake(
     loop {
         let frame = match conn.wait(deadline, shared, generation) {
             Ok(frame) => frame,
-            Err(End::Closed) if !answered => return Err(End::Unanswered),
+            Err(End::Closed | End::Io(_)) if !answered => return Err(End::Unanswered),
             Err(end) => return Err(end),
         };
         answered = true;
