@@ -4,7 +4,7 @@
 
 ## Outcome or responsibility
 
-The S Pen works as a pressure-sensitive pen tablet for the computer while fingers keep working as the trackpad. Hover moves the cursor, the tip draws with pressure, and the side button acts as the barrel button or eraser. A full-screen landscape pen canvas gives the largest drawing area.
+The S Pen works as a pressure-sensitive pen tablet for the computer while fingers keep working as the trackpad. Hover moves the cursor, the tip draws with pressure, and the side button acts as the barrel button or eraser. A full-screen landscape pen canvas gives the largest drawing area (see [the wireframe](../assets/wireframes/pen-canvas-drawing.svg)).
 
 ## Current verified status
 

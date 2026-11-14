@@ -4,7 +4,7 @@
 
 ## Outcome or responsibility
 
-The phone screen acts as a laptop-style trackpad: one finger moves the pointer, taps click, two fingers scroll, and on-screen buttons press and hold. The Mouse screen layout follows the original app's screenshots (see [the wireframe](../assets/wireframes/mouse-screen.svg)).
+The phone screen acts as a laptop-style trackpad: one finger moves the pointer, taps click, two fingers scroll, and on-screen buttons press and hold. The Mouse screen layout follows the original app's screenshots (see the [Mouse screen](../assets/wireframes/main-connected.svg) and the settings sheet's [Mouse](../assets/wireframes/settings-mouse.svg), [Pen](../assets/wireframes/settings-pen.svg), [Connection](../assets/wireframes/settings-connection.svg), and [Display](../assets/wireframes/settings-display.svg) tab wireframes).
 
 ## Current verified status
 

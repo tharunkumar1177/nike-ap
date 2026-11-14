@@ -1,0 +1,73 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- assets/wireframes/settings-connection.svg: settings sheet fully expanded on the Connection tab, Bluetooth mode at its default (portrait, light theme). -->
+<svg xmlns="http://www.w3.org/2000/svg" width="390" height="844" viewBox="0 0 390 844" font-family="Roboto, 'Segoe UI', Arial, sans-serif">
+  <defs>
+    <path id="ic-wifi" d="M1 9l2 2c4.97-4.97 13.03-4.97 18 0l2-2C16.93 2.93 7.08 2.93 1 9zm8 8l3 3 3-3c-1.65-1.66-4.34-1.66-6 0zm-4-4l2 2c2.76-2.76 7.24-2.76 10 0l2-2C15.14 9.14 8.87 9.14 5 13z"/>
+    <path id="ic-signal" d="M2 22h20V2z"/>
+    <path id="ic-battery" d="M15.67 4H14V2h-4v2H8.33C7.6 4 7 4.6 7 5.33v15.33C7 21.4 7.6 22 8.33 22h7.33c.74 0 1.34-.6 1.34-1.33V5.33C17 4.6 16.4 4 15.67 4z"/>
+  </defs>
+
+  <rect id="background" x="0" y="0" width="390" height="844" fill="#F6F8FB"/>
+  <rect id="scrim" x="0" y="0" width="390" height="844" fill="#000000" fill-opacity="0.32"/>
+
+  <g id="sheet">
+    <path d="M0 52A28 28 0 0 1 28 24H362A28 28 0 0 1 390 52V844H0Z" fill="#F7F2FA"/>
+    <rect id="drag-handle" x="179" y="46" width="32" height="4" rx="2" fill="#49454F" fill-opacity="0.4"/>
+
+    <g id="tab-row" font-size="14" font-weight="500" text-anchor="middle">
+      <rect x="0" y="72" width="390" height="48" fill="#F6F8FB"/>
+      <rect x="0" y="119" width="390" height="1" fill="#CAC4D0"/>
+      <rect x="195" y="118" width="97.5" height="2" fill="#00658F"/>
+      <text x="48.75" y="100.8" fill="#49454F">Mouse</text>
+      <text x="146.25" y="100.8" fill="#49454F">Pen</text>
+      <text x="243.75" y="100.8" fill="#00658F">Connection</text>
+      <text x="341.25" y="100.8" fill="#49454F">Display</text>
+    </g>
+
+    <g id="content" fill="#1D1B20">
+      <g id="bluetooth-mode">
+        <text x="20" y="149.5" font-size="16">Bluetooth mode</text>
+        <g font-size="14" font-weight="500" text-anchor="middle">
+          <rect x="20" y="168" width="97" height="32" rx="8" fill="#E8DEF8"/>
+          <text x="68.5" y="188.8" fill="#1D192B">Automatic</text>
+          <rect x="125.5" y="168.5" width="77" height="31" rx="7.5" fill="none" stroke="#CAC4D0"/>
+          <text x="164" y="188.8" fill="#49454F">Classic</text>
+          <rect x="211.5" y="168.5" width="104" height="31" rx="7.5" fill="none" stroke="#CAC4D0"/>
+          <text x="263.5" y="188.8" fill="#49454F">Low Energy</text>
+        </g>
+      </g>
+
+      <g id="bluetooth-mode-help" font-size="12">
+        <text x="20" y="230.1">Automatic uses Classic Bluetooth and switches to Low Energy</text>
+        <text x="20" y="246.1">when this phone does not allow Classic mouse mode.</text>
+      </g>
+
+      <rect id="divider" x="20" y="260" width="350" height="1" fill="#CAC4D0"/>
+
+      <g id="usb-connection">
+        <text x="20" y="285.8" font-size="14" font-weight="500">USB connection</text>
+        <g font-size="12">
+          <text x="20" y="313.1">Install PadLink Helper on the Windows computer. USB (ADB)</text>
+          <text x="20" y="329.1">needs USB debugging; USB (Tethering) needs USB tethering</text>
+          <text x="20" y="345.1">and a one-time approval.</text>
+        </g>
+      </g>
+
+      <g id="forget-approved-computers">
+        <rect x="20.5" y="363.5" width="225" height="39" rx="19.5" fill="none" stroke="#79747E"/>
+        <text x="133" y="387.8" font-size="14" font-weight="500" fill="#00658F" text-anchor="middle">Forget approved computers</text>
+      </g>
+    </g>
+  </g>
+
+  <g id="status-bar" fill="#1D1B20">
+    <text x="16" y="16.8" font-size="14">12:30</text>
+    <use href="#ic-wifi" transform="translate(318 4) scale(0.6667)"/>
+    <use href="#ic-signal" transform="translate(338 4) scale(0.6667)"/>
+    <use href="#ic-battery" transform="translate(358 4) scale(0.6667)"/>
+  </g>
+
+  <g id="nav-bar">
+    <rect x="141" y="830" width="108" height="4" rx="2" fill="#1D1B20"/>
+  </g>
+</svg>

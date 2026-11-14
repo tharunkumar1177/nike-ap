@@ -1,0 +1,102 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- assets/wireframes/settings-pen.svg: settings sheet fully expanded on the Pen tab, tablet mode with default values (portrait, light theme). -->
+<svg xmlns="http://www.w3.org/2000/svg" width="390" height="844" viewBox="0 0 390 844" font-family="Roboto, 'Segoe UI', Arial, sans-serif">
+  <defs>
+    <path id="ic-wifi" d="M1 9l2 2c4.97-4.97 13.03-4.97 18 0l2-2C16.93 2.93 7.08 2.93 1 9zm8 8l3 3 3-3c-1.65-1.66-4.34-1.66-6 0zm-4-4l2 2c2.76-2.76 7.24-2.76 10 0l2-2C15.14 9.14 8.87 9.14 5 13z"/>
+    <path id="ic-signal" d="M2 22h20V2z"/>
+    <path id="ic-battery" d="M15.67 4H14V2h-4v2H8.33C7.6 4 7 4.6 7 5.33v15.33C7 21.4 7.6 22 8.33 22h7.33c.74 0 1.34-.6 1.34-1.33V5.33C17 4.6 16.4 4 15.67 4z"/>
+  </defs>
+
+  <rect id="background" x="0" y="0" width="390" height="844" fill="#F6F8FB"/>
+  <rect id="scrim" x="0" y="0" width="390" height="844" fill="#000000" fill-opacity="0.32"/>
+
+  <g id="sheet">
+    <path d="M0 52A28 28 0 0 1 28 24H362A28 28 0 0 1 390 52V844H0Z" fill="#F7F2FA"/>
+    <rect id="drag-handle" x="179" y="46" width="32" height="4" rx="2" fill="#49454F" fill-opacity="0.4"/>
+
+    <g id="tab-row" font-size="14" font-weight="500" text-anchor="middle">
+      <rect x="0" y="72" width="390" height="48" fill="#F6F8FB"/>
+      <rect x="0" y="119" width="390" height="1" fill="#CAC4D0"/>
+      <rect x="97.5" y="118" width="97.5" height="2" fill="#00658F"/>
+      <text x="48.75" y="100.8" fill="#49454F">Mouse</text>
+      <text x="146.25" y="100.8" fill="#00658F">Pen</text>
+      <text x="243.75" y="100.8" fill="#49454F">Connection</text>
+      <text x="341.25" y="100.8" fill="#49454F">Display</text>
+    </g>
+
+    <g id="content" fill="#1D1B20">
+      <g id="pen-mode">
+        <text x="20" y="149.5" font-size="16">S Pen mode</text>
+        <g font-size="14" font-weight="500" text-anchor="middle">
+          <rect x="20" y="168" width="72" height="32" rx="8" fill="#E8DEF8"/>
+          <text x="56" y="188.8" fill="#1D192B">Tablet</text>
+          <rect x="100.5" y="168.5" width="76" height="31" rx="7.5" fill="none" stroke="#CAC4D0"/>
+          <text x="138.5" y="188.8" fill="#49454F">Pointer</text>
+        </g>
+      </g>
+
+      <g id="pen-mode-help" font-size="12">
+        <text x="20" y="230.1">The screen maps to the computer screen like a drawing</text>
+        <text x="20" y="246.1">tablet, with hover, pressure, and the side button.</text>
+      </g>
+
+      <g id="tablet-shape">
+        <text x="20" y="277.5" font-size="16">Tablet shape</text>
+        <g font-size="14" font-weight="500" text-anchor="middle">
+          <rect x="20" y="296" width="62" height="32" rx="8" fill="#E8DEF8"/>
+          <text x="51" y="316.8" fill="#1D192B">Auto</text>
+          <rect x="90.5" y="296.5" width="60" height="31" rx="7.5" fill="none" stroke="#CAC4D0"/>
+          <text x="120.5" y="316.8" fill="#49454F">16:9</text>
+          <rect x="159.5" y="296.5" width="72" height="31" rx="7.5" fill="none" stroke="#CAC4D0"/>
+          <text x="195.5" y="316.8" fill="#49454F">16:10</text>
+          <rect x="240.5" y="296.5" width="51" height="31" rx="7.5" fill="none" stroke="#CAC4D0"/>
+          <text x="266" y="316.8" fill="#49454F">3:2</text>
+          <rect x="300.5" y="296.5" width="60" height="31" rx="7.5" fill="none" stroke="#CAC4D0"/>
+          <text x="330.5" y="316.8" fill="#49454F">21:9</text>
+          <rect x="20.5" y="344.5" width="77" height="31" rx="7.5" fill="none" stroke="#CAC4D0"/>
+          <text x="59" y="364.8" fill="#49454F">Stretch</text>
+        </g>
+      </g>
+
+      <g id="tablet-area">
+        <text x="20" y="411.5" font-size="16">Tablet area (%)</text>
+        <text x="370" y="408.8" font-size="14" text-anchor="end">100</text>
+        <path d="M28 434H358A2 2 0 0 1 360 436V448A2 2 0 0 1 358 450H28A8 8 0 0 1 20 442A8 8 0 0 1 28 434Z" fill="#00658F"/>
+        <rect x="366" y="420" width="4" height="44" rx="2" fill="#00658F"/>
+      </g>
+
+      <g id="pressure">
+        <text x="20" y="493.5" font-size="16">Pressure</text>
+        <g font-size="14" font-weight="500" text-anchor="middle">
+          <rect x="20.5" y="512.5" width="57" height="31" rx="7.5" fill="none" stroke="#CAC4D0"/>
+          <text x="49" y="532.8" fill="#49454F">Soft</text>
+          <rect x="86" y="512" width="78" height="32" rx="8" fill="#E8DEF8"/>
+          <text x="125" y="532.8" fill="#1D192B">Normal</text>
+          <rect x="172.5" y="512.5" width="59" height="31" rx="7.5" fill="none" stroke="#CAC4D0"/>
+          <text x="202" y="532.8" fill="#49454F">Firm</text>
+        </g>
+      </g>
+
+      <g id="side-button">
+        <text x="20" y="579.5" font-size="16">Side button</text>
+        <g font-size="14" font-weight="500" text-anchor="middle">
+          <rect x="20" y="598" width="114" height="32" rx="8" fill="#E8DEF8"/>
+          <text x="77" y="618.8" fill="#1D192B">Barrel button</text>
+          <rect x="142.5" y="598.5" width="71" height="31" rx="7.5" fill="none" stroke="#CAC4D0"/>
+          <text x="178" y="618.8" fill="#49454F">Eraser</text>
+        </g>
+      </g>
+    </g>
+  </g>
+
+  <g id="status-bar" fill="#1D1B20">
+    <text x="16" y="16.8" font-size="14">12:30</text>
+    <use href="#ic-wifi" transform="translate(318 4) scale(0.6667)"/>
+    <use href="#ic-signal" transform="translate(338 4) scale(0.6667)"/>
+    <use href="#ic-battery" transform="translate(358 4) scale(0.6667)"/>
+  </g>
+
+  <g id="nav-bar">
+    <rect x="141" y="830" width="108" height="4" rx="2" fill="#1D1B20"/>
+  </g>
+</svg>
