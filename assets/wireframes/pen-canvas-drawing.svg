@@ -1,0 +1,56 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- assets/wireframes/pen-canvas-drawing.svg: pen canvas (landscape, immersive) in tablet mode at 16:9 and 100% area, with an S Pen ink trail. -->
+<svg xmlns="http://www.w3.org/2000/svg" width="844" height="390" viewBox="0 0 844 390" font-family="Roboto, 'Segoe UI', Arial, sans-serif">
+  <defs>
+    <path id="ic-close" d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/>
+    <path id="ic-settings" d="M19.43 12.98c.04-.32.07-.64.07-.98 0-.34-.03-.66-.07-.98l2.11-1.65c.19-.15.24-.42.12-.64l-2-3.46c-.09-.16-.26-.25-.44-.25-.06 0-.12.01-.17.03l-2.49 1c-.52-.4-1.08-.73-1.69-.98l-.38-2.65C14.46 2.18 14.25 2 14 2h-4c-.25 0-.46.18-.49.42l-.38 2.65c-.61.25-1.17.59-1.69.98l-2.49-1c-.06-.02-.12-.03-.18-.03-.17 0-.34.09-.43.25l-2 3.46c-.13.22-.07.49.12.64l2.11 1.65c-.04.32-.07.65-.07.98 0 .33.03.66.07.98l-2.11 1.65c-.19.15-.24.42-.12.64l2 3.46c.09.16.26.25.44.25.06 0 .12-.01.17-.03l2.49-1c.52.4 1.08.73 1.69.98l.38 2.65c.03.24.24.42.49.42h4c.25 0 .46-.18.49-.42l.38-2.65c.61-.25 1.17-.59 1.69-.98l2.49 1c.06.02.12.03.18.03.17 0 .34-.09.43-.25l2-3.46c.12-.22.07-.49-.12-.64l-2.11-1.65zm-1.98-1.71c.04.31.05.52.05.73 0 .21-.02.43-.05.73l-.14 1.13.89.7 1.08.84-.7 1.21-1.27-.51-1.04-.42-.9.68c-.43.32-.84.56-1.25.73l-1.06.43-.16 1.13-.2 1.35h-1.4l-.19-1.35-.16-1.13-1.06-.43c-.43-.18-.83-.41-1.23-.71l-.91-.7-1.06.43-1.27.51-.7-1.21 1.08-.84.89-.7-.14-1.13c-.03-.31-.05-.54-.05-.74s.02-.43.05-.73l.14-1.13-.89-.7-1.08-.84.7-1.21 1.27.51 1.04.42.9-.68c.43-.32.84-.56 1.25-.73l1.06-.43.16-1.13.2-1.35h1.39l.19 1.35.16 1.13 1.06.43c.43.18.83.41 1.23.71l.91.7 1.06-.43 1.27-.51.7 1.21-1.07.85-.89.7.14 1.13zM12 8c-2.21 0-4 1.79-4 4s1.79 4 4 4 4-1.79 4-4-1.79-4-4-4zm0 6c-1.1 0-2-.9-2-2s.9-2 2-2 2 .9 2 2-.9 2-2 2z"/>
+    <path id="ic-mouse" d="M20 9c-.04-4.39-3.6-7.93-8-7.93S4.04 4.61 4 9v6c0 4.42 3.58 8 8 8s8-3.58 8-8V9zm-2 0h-5V3.16c2.81.47 4.96 2.9 5 5.84zm-7-5.84V9H6c.04-2.94 2.19-5.37 5-5.84zM18 15c0 3.31-2.69 6-6 6s-6-2.69-6-6v-4h12v4z"/>
+    <clipPath id="trackpad-shape">
+      <rect x="8" y="8" width="828" height="374" rx="18"/>
+    </clipPath>
+  </defs>
+
+  <rect id="background" x="0" y="0" width="844" height="390" fill="#001E30"/>
+
+  <g id="trackpad" clip-path="url(#trackpad-shape)">
+    <rect x="8" y="8" width="828" height="374" fill="#004B70"/>
+    <g id="tablet-frame">
+      <rect x="8" y="8" width="81.56" height="374" fill="#000000" fill-opacity="0.2"/>
+      <rect x="754.44" y="8" width="81.56" height="374" fill="#000000" fill-opacity="0.2"/>
+      <rect x="89.56" y="8" width="664.88" height="374" fill="none" stroke="#CFE5FF" stroke-opacity="0.5" stroke-width="1"/>
+    </g>
+    <g id="hint">
+      <use href="#ic-mouse" transform="translate(400 161) scale(1.8333)" fill="#CFE5FF"/>
+      <text x="422" y="225.1" font-size="12" fill="#CFE5FF" text-anchor="middle">Draw with the S Pen. Fingers still move the pointer.</text>
+    </g>
+    <g id="ink-trail" stroke="#CFE5FF" stroke-linecap="round" fill="none">
+      <path d="M468 182C471 177.67 479.33 164.67 486 156" stroke-width="2.6" stroke-opacity="0.06"/>
+      <path d="M486 156C492.67 147.33 500.33 137.67 508 130" stroke-width="3.0" stroke-opacity="0.13"/>
+      <path d="M508 130C515.67 122.33 524 114.67 532 110" stroke-width="3.4" stroke-opacity="0.19"/>
+      <path d="M532 110C540 105.33 548.33 102 556 102" stroke-width="3.8" stroke-opacity="0.25"/>
+      <path d="M556 102C563.67 102 572.33 105.33 578 110" stroke-width="4.1" stroke-opacity="0.31"/>
+      <path d="M578 110C583.67 114.67 589 122.67 590 130" stroke-width="4.4" stroke-opacity="0.38"/>
+      <path d="M590 130C591 137.33 588 148.33 584 154" stroke-width="4.6" stroke-opacity="0.44"/>
+      <path d="M584 154C580 159.67 571.33 164 566 164" stroke-width="4.8" stroke-opacity="0.50"/>
+      <path d="M566 164C560.67 164 553.67 159.33 552 154" stroke-width="4.8" stroke-opacity="0.56"/>
+      <path d="M552 154C550.33 148.67 552 139 556 132" stroke-width="4.6" stroke-opacity="0.63"/>
+      <path d="M556 132C560 125 568 118 576 112" stroke-width="4.4" stroke-opacity="0.69"/>
+      <path d="M576 112C584 106 594.33 99.67 604 96" stroke-width="4.2" stroke-opacity="0.75"/>
+      <path d="M604 96C613.67 92.33 624.67 90 634 90" stroke-width="4.0" stroke-opacity="0.81"/>
+      <path d="M634 90C643.33 90 652.67 92 660 96" stroke-width="3.9" stroke-opacity="0.88"/>
+      <path d="M660 96C667.33 100 673.33 107 678 114" stroke-width="3.8" stroke-opacity="0.94"/>
+      <path d="M678 114C682.67 121 685.5 131.67 688 138" stroke-width="3.7" stroke-opacity="1"/>
+      <g id="predicted-tail" stroke-width="3.7" stroke-opacity="0.5">
+        <path d="M688 138C690.5 144.33 691.67 147.33 693 152"/>
+        <path d="M693 152C694.33 156.67 695.5 163.67 696 166"/>
+      </g>
+    </g>
+  </g>
+
+  <g id="status-pill">
+    <rect x="16" y="16" width="257" height="48" rx="12" fill="#001E30" fill-opacity="0.7"/>
+    <use href="#ic-close" transform="translate(28 28)" fill="#CFE5FF"/>
+    <text x="64" y="44.8" font-size="14" fill="#CFE5FF" xml:space="preserve">DESKTOP-PC  connected</text>
+    <use href="#ic-settings" transform="translate(237 28)" fill="#CFE5FF"/>
+  </g>
+</svg>

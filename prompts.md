@@ -1,77 +1,6 @@
-I want the Quire (which is a Notion clone that runs on the local machine, an browser extension based web application, opens the web page after click browser extension icon's popup window). I don't want it as a cloud deployable project at all. so restructure the blueprints and what so ever.
-
-It reads the md files from the local machine (Folder that has been mapped by the user) and display it as a relevant notion elements. For example
-
-
-
-
-It reads the md files from the local machine (Folder that has been mapped by the user) and display it as a relevant notion elements. For example
-
-
-
-- Every newline in md file is a separate block in notion
-
-
-- For the code blocks use this format (``` your code ```) 
-- inline code block `your code`
-
-- Gather data of how markdown file can be structured from this site - Https://www.freecodecamp.org/news/github-flavored-markdown-syntax-examples/
-
-- If you don't clarity on Notion blocks, use Reverse Engineering anything (REA) skill
+# PadLink
 
 - we gonna use the same stack in order to get the same result, so what would that be? Research and finalize and write it in plan.md
-
-- Don't use any subagents for designing, architectural plan or for CI review. Do the designing and architectural planning yourself and test it in the cursor browser
-
-
-If we were going to implement sub pages, the files has to be stored in some structures, right? suggest me the optimal and best one.
-
-## Structure 1
-
-Root Folder
-|
-|— README.md
-|
-|— (Sub Folder) 
-|     |
-|     |—— README.md
-|     |—— (Nested folders) 
-|— 
-
-
-## Structure 2
-
-Root Folder
-|— README.md
-|
-|— file1.md
-|— file2.md 
-|— file3.md
-
-- Main file (README.md) is the only routing point for the everyother file in the space
-- If user has to go through the any other files in the folder, the file has to be listed in the README.md
-
-
-
-## AI  feature
-
-- AI -> context file / system prompt
-
-- All the AI features runs locally
-- users can put it there API for gemini and then start using all the AI features
-- first users has to select  which AI model  they gonna use, then lazy loads that LLM sdk
-
-
-
-- Git track check (*mandatory) and current branch indicator (bar)
-
-
-
-## Concerns
-
-### Hyperlinks and subpage
-
-- so if represent hyperlinks as `[link](./product.md)` then how do we describe the
 
 
 -------------------
@@ -677,3 +606,80 @@ CI targeted test execution - rule
 Don't specify for this project only...
 
 
+
+
+
+Windows Helper - Don't duplicate instance spawning 
+
+
+
+# USB Tethering Mode
+
+- Windows Helper: Looking for the phone over USB (Tethering): the phone closed the connection during the handshake; retrying [10.224.67.103:47800]
+
+- Mobile: Waiting for Padlink Helper - USB tethering is on. Start PadLink Helper on the computer, you will be asked to approve it the first time. Last connection from <device-name> ende: the helper closed the connection. Check that only one copy of PadLink Helper is running.
+
+
+---
+
+It's been loading for a very long time. In this commit - it atleast got connect and worked for a while (7f9026079d4eea99c3ffacbedce9fe5ad6a92e69)
+
+
+
+
+## USB Debugging Mode
+
+- Developer Option > USB Debugging enable
+
+- Disable `Auto Blocker`
+
+- 
+
+
+
+## Mouse Driver
+
+
+
+
+
+
+
+## Pen
+
+- Trailing of pen movement (Lenght or Timing)
+  - Timing (upto 10s)
+
+
+
+
+
+Mouse > Scroll bar > + Hide (By default)
+
+- Store the settings in the mobile
+
+
+- Fullscreen Mode (No Bottom panel and Edge panel)
+
+
+How does the Android app maintains states of connected devices internally?
+
+Storage: User preferred settings
+
+
+
+
+
+(Recommended) Phone sends events over USB to a Windows helper app, which moves the cursor with SendInput.
+The link runs over adb reverse, so USB debugging must be on.
+
+Windows helper app over USB tethering: the phone's USB network link carries TCP. No developer mode needed,
+but USB tethering must be switched on.
+
+Windows helper over Android Open Accessory (raw USB). No developer mode, but Windows needs a
+WinUSB/libusb driver installed.
+
+- How do I install the WinUSB/ libusb driver?
+
+
+- Can we achieve ADB connection wirelessly?

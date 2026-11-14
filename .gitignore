@@ -8,6 +8,11 @@ dist/
 .turbo/
 helper/target/
 helper/out/
+android/.gradle/
+android/.kotlin/
+android/build/
+android/app/build/
+android/local.properties
 
 # Test and coverage
 coverage/

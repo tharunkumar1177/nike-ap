@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- colors.xml: window and launcher colors matching the trackpad palette. -->
+<resources>
+    <color name="window_background">#FFF6F8FB</color>
+    <color name="pen_canvas_background">#FF001E30</color>
+    <color name="launcher_background">#FF004B70</color>
+</resources>

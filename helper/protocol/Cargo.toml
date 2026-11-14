@@ -1,0 +1,9 @@
+# helper/protocol/Cargo.toml: wired protocol codec shared by the helper (see "Wired protocol" in architecture.md).
+[package]
+name = "padlink-protocol"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+publish.workspace = true
+
+[dependencies]

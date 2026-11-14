@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- themes.xml: window themes shown before Compose draws; Compose owns all in-app colors. -->
+<resources>
+    <style name="Theme.PadLink" parent="android:Theme.Material.Light.NoActionBar">
+        <item name="android:windowBackground">@color/window_background</item>
+        <item name="android:statusBarColor">@android:color/transparent</item>
+        <item name="android:navigationBarColor">@android:color/transparent</item>
+    </style>
+
+    <style name="Theme.PadLink.Fullscreen" parent="Theme.PadLink">
+        <item name="android:windowBackground">@color/pen_canvas_background</item>
+        <item name="android:windowFullscreen">true</item>
+        <item name="android:windowLayoutInDisplayCutoutMode">shortEdges</item>
+    </style>
+</resources>
