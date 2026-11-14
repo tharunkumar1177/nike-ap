@@ -15,7 +15,7 @@ The codec, the TCP server for both modes, the pairing flow, the keepalive, and t
 ## Architecture dependencies
 
 - [Wired protocol](../architecture.md#wired-protocol): the phone encodes Welcome, PairCode, Mouse, Pen, Ping, Pong, and Bye; it decodes Hello, HostInfo, Ping, Pong, and Bye.
-- [Transport selection](../architecture.md#transport-selection): ADB mode binds loopback; tethering mode listens on all interfaces and accepts only loopback and tether-interface connections.
+- [Transport selection](../architecture.md#transport-selection): ADB mode binds loopback; tethering mode binds the tether interface address plus loopback (for `adb forward`).
 - [Wired pairing and trust](../architecture.md#wired-pairing-and-trust): tethering mode checks the helper token and raises `PairingRequest` for unknown helpers.
 - [Input delivery and release semantics](../architecture.md#input-delivery-and-release-semantics): the sender thread drains the shared outbox into frames.
 
@@ -24,7 +24,9 @@ The codec, the TCP server for both modes, the pairing flow, the keepalive, and t
 - One client at a time; a new client replaces the old one after its Hello is accepted. Only one pairing can be pending; a second unknown helper is rejected while it waits.
 - When a session ends, the transport records why: the helper went silent for 3 s, the helper closed the connection, no Hello arrived, a newer session replaced it, a protocol error, or a socket error. The waiting card shows that reason with the helper's name, and the reason is logged under the `PadLinkWired` tag.
 - Socket writes never run on the main thread; `stop()` sends the release frames and Bye from a short-lived thread.
-- Tethering mode checks the network interfaces every 2 s to show or clear the "USB tethering is off" hint. It never rebinds, so a new tether address that Android picks takes effect immediately. Local addresses may arrive IPv4-mapped (`::ffff:a.b.c.d`) and are unmapped before the loopback and tether checks.
+- Tethering mode rescans network interfaces every 2 s until a tether address exists, and rebinds when it changes. The loopback listener runs alongside it and does not affect the hints.
+- Do not replace the specific-address bind with a wildcard bind plus an interface check. On a Galaxy device that check refused real tethering connections, closing them silently during the handshake.
+- A loopback local address (unmapped from `::ffff:127.0.0.1` when needed) marks an `adb forward` helper, which skips pairing.
 - The header shows `Connecting` while waiting for the helper and `Connected` after Welcome status 0.
 - Guidance card: ADB mode explains enabling USB debugging and running the helper; tethering mode offers a button to open the system tethering settings.
 

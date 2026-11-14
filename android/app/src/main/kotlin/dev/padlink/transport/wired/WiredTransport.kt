@@ -28,6 +28,7 @@ import java.net.Socket
 import java.net.SocketTimeoutException
 import java.security.SecureRandom
 import java.util.concurrent.ArrayBlockingQueue
+import java.util.concurrent.CopyOnWriteArraySet
 import java.util.concurrent.TimeUnit
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -55,11 +56,11 @@ class WiredTransport(
 
     @Volatile private var running = false
     @Volatile private var session: Session? = null
-    @Volatile private var serverSocket: ServerSocket? = null
+    private val servers: MutableSet<ServerSocket> = CopyOnWriteArraySet()
     @Volatile private var serverIssue: LinkIssue? = null
     @Volatile private var pendingDecision: ArrayBlockingQueue<Boolean>? = null
     @Volatile private var lastDrop: LinkDrop? = null
-    private var serverThread: Thread? = null
+    private val serverThreads = mutableListOf<Thread>()
 
     /** One accepted helper connection with serialized writes. */
     private inner class Session(val socket: Socket) {
@@ -90,11 +91,26 @@ class WiredTransport(
         }
     }
 
-    /** Starts the accept loop on a background thread. */
+    /**
+     * Starts the accept loops. ADB mode listens on loopback. Tethering mode listens on the tether
+     * interface address and also on loopback, so a helper that arrives through `adb forward` works too.
+     */
     override fun start() {
         if (running) return
         running = true
-        serverThread = Thread({ serverLoop() }, "wired-server").apply {
+        val loopback = InetAddress.getLoopbackAddress()
+        when (mode) {
+            WiredMode.ADB -> startLoop("wired-server") { serverLoop({ loopback }, reportIssues = true) }
+            WiredMode.TETHER -> {
+                startLoop("wired-server") { serverLoop(TetherInterfaces::findAddress, reportIssues = true) }
+                startLoop("wired-adb") { serverLoop({ loopback }, reportIssues = false) }
+            }
+        }
+    }
+
+    /** Runs [body] on a named daemon thread tracked for [stop]. */
+    private fun startLoop(name: String, body: () -> Unit) {
+        serverThreads += Thread(body, name).apply {
             isDaemon = true
             start()
         }
@@ -105,8 +121,8 @@ class WiredTransport(
         running = false
         pendingDecision?.offer(false)
         val s = synchronized(sessionLock) { session.also { session = null } }
-        val server = serverSocket
-        serverSocket = null
+        val open = servers.toList()
+        servers.clear()
         Thread({
             s?.write(
                 WireFrame.Mouse(0, 0, 0, 0, 0),
@@ -114,9 +130,10 @@ class WiredTransport(
                 WireFrame.Bye,
             )
             s?.close()
-            runCatching { server?.close() }
+            open.forEach { runCatching { it.close() } }
         }, "wired-stop").start()
-        serverThread?.interrupt()
+        serverThreads.forEach { it.interrupt() }
+        serverThreads.clear()
         outbox.close()
         _state.value = LinkState(LinkStatus.IDLE, stack)
     }
@@ -132,72 +149,61 @@ class WiredTransport(
     }
 
     /**
-     * Binds and accepts helpers. ADB mode listens on loopback only. Tethering mode listens on all
-     * interfaces so the helper reaches it whichever tether address Android picked, and also through
-     * `adb forward`; connections arriving on any other interface (Wi-Fi, mobile data) are refused.
+     * Binds the address [addressOf] returns and accepts helpers, rebinding when that address
+     * changes. Only the primary loop ([reportIssues]) drives the tethering-off and port-in-use hints.
      */
-    private fun serverLoop() {
-        val bindAddress = when (mode) {
-            WiredMode.ADB -> InetAddress.getLoopbackAddress()
-            WiredMode.TETHER -> InetAddress.getByAddress(byteArrayOf(0, 0, 0, 0))
-        }
+    private fun serverLoop(addressOf: () -> InetAddress?, reportIssues: Boolean) {
         while (running) {
+            val address = addressOf()
+            if (address == null) {
+                if (reportIssues) {
+                    serverIssue = LinkIssue.TETHER_OFF
+                    publishCurrent()
+                }
+                if (!sleepQuietly(RESCAN_MS)) return
+                continue
+            }
             val server = try {
                 ServerSocket().apply {
                     reuseAddress = true
                     soTimeout = RESCAN_MS.toInt()
-                    bind(InetSocketAddress(bindAddress, WireCodec.PORT), BACKLOG)
+                    bind(InetSocketAddress(address, WireCodec.PORT), BACKLOG)
                 }
-            } catch (_: IOException) {
-                serverIssue = LinkIssue.PORT_IN_USE
-                publishCurrent()
+            } catch (e: IOException) {
+                Log.w(TAG, "cannot listen on ${address.hostAddress}", e)
+                if (reportIssues) {
+                    serverIssue = LinkIssue.PORT_IN_USE
+                    publishCurrent()
+                }
                 if (!sleepQuietly(RESCAN_MS)) return
                 continue
             }
-            serverSocket = server
-            serverIssue = null
-            refreshTetherIssue()
-            publishCurrent()
+            servers += server
+            if (!running) runCatching { server.close() }
+            if (reportIssues) {
+                serverIssue = null
+                publishCurrent()
+            }
+            Log.i(TAG, "listening on ${address.hostAddress}:${WireCodec.PORT}")
             try {
                 while (running) {
                     try {
                         val socket = server.accept()
-                        if (!isAllowedOrigin(socket)) {
-                            Log.w(TAG, "refused helper on ${socket.localAddress?.hostAddress}")
-                            runCatching { socket.close() }
-                            continue
-                        }
                         Thread({ handleClient(socket) }, "wired-client").apply {
                             isDaemon = true
                             start()
                         }
                     } catch (_: SocketTimeoutException) {
-                        if (refreshTetherIssue()) publishCurrent()
+                        if (addressOf() != address) break
                     }
                 }
             } catch (_: IOException) {
                 // Closed by stop().
             } finally {
                 runCatching { server.close() }
-                if (serverSocket === server) serverSocket = null
+                servers -= server
             }
         }
-    }
-
-    /** Updates the tethering-off hint in tethering mode; returns true when it changed. */
-    private fun refreshTetherIssue(): Boolean {
-        if (mode != WiredMode.TETHER) return false
-        val issue = if (TetherInterfaces.findAddress() == null) LinkIssue.TETHER_OFF else null
-        if (issue == serverIssue) return false
-        serverIssue = issue
-        return true
-    }
-
-    /** True for connections through `adb forward` (loopback) or, in tethering mode, a USB tether interface. */
-    private fun isAllowedOrigin(socket: Socket): Boolean {
-        val local = socket.localAddress?.let(TetherInterfaces::unmap) ?: return false
-        if (local.isLoopbackAddress) return true
-        return mode == WiredMode.TETHER && TetherInterfaces.isTetherAddress(local)
     }
 
     /** Runs the handshake, optional pairing, keepalive, and receive loop for one helper. */

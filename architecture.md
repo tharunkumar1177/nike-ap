@@ -101,7 +101,7 @@ The wired link is a single TCP connection. The phone is always the server on por
 - The user picks one transport in the header picker: **Bluetooth** (a bonded host), **USB (ADB)**, or **USB (Tethering)**. Only one transport is active at a time; switching stops the previous one first.
 - Bluetooth sub-mode (setting `bt_mode`): `auto` tries Classic HID and falls back to BLE when the HID Device profile proxy is unavailable or app registration fails; `classic` and `ble` force one stack.
 - USB (ADB): the server binds to loopback only; the helper runs `adb forward tcp:47800 tcp:47800`.
-- USB (Tethering): the server listens on all interfaces but immediately closes any connection whose local address is neither loopback nor an address of a USB tether interface (`rndis*`, `ncm*`, `usb*`). The helper connects to its tether adapter's gateway. A helper that arrives through `adb forward` (loopback) is also accepted and skips pairing, because USB debugging authorization already vouches for the computer.
+- USB (Tethering): the server binds the IPv4 address of the USB tether interface (`rndis*`, `ncm*`, `usb*`), and the helper connects to its tether adapter's gateway. A second listener on loopback accepts a helper that arrives through `adb forward`; that helper skips pairing, because USB debugging authorization already vouches for the computer. The phone never listens on other interfaces.
 
 ### Connection state model
 
