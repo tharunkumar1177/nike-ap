@@ -22,47 +22,6 @@ First give me an example of how it looks .... color monochrome or simplistic con
 
 
 
-
-
-
-
-The AI is for page summarization or vacation planning or what so ever. If it requires separate server to achieve it, proceed
-
-
-How should Quire run Git?
-
-isomorphic-git inside the extension: nothing extra to install; HTTPS remotes only, with a personal access token; no
-SSH keys
-
-Native helper app that runs the user's real git: uses existing SSH keys and credentials; needs a one-time installer for
-each OS
-
-A
-
-B
-How should Quire protect against data loss through Git?
-
-Auto-commit after saves (batched after a short idle time) and auto-push; the status bar shows branch, unpushed
-commits, and remote status
-
-Status bar shows branch and remote status, and warns about uncommitted or unpushed work; the user commits
-and pushes with a button
-
-Auto-commit locally; the user pushes with a button; warn when unpushed
-
------------
-
-A
-
-B
-
-The native helper is needed for Git anyway. Should it also read and write the .md files?
-
-Yes: the helper does file reading and writing and Git; the user picks the folder once (Recommended)
-
-No: the browser reads and writes files, and the helper only runs Git (the user also gives the helper the folder path)
-
-
 --------------
 
 
@@ -245,38 +204,6 @@ Agents Window → Open Agents Window
 
 
 Design specialized subagent for Cursor [ Reviewer]. Describe its role and how it should respond. Give description for each agent (cursor) and if additional property required - add them as well.
-
-
-
-Research Agent - Research for the existing product's system, features.
-
-Designer - responsible for designing Aesthetics and intuitive UI,  UI workflows. Returns Design plan with granular details. currently it writes code
-
-Coder - writes code consider every possible edge cases
-
-Productmind - Researches [external media like relevant subreddit page, ] what existing product failed address or could have done better that speaks for the product itself. can only be called by {Designer, Research Agent}
-
-Reviewer - reviews code by build error check via gh-cli CI logs, polls and returns what actually causing build fails/ errors
-
-Planner - comes up with a plan, proceeds further if it is approved. writes plan in md file and wait for approval. Planner can invoke these Agents {Architect, Researcher, productmind}
-
-
----
-
-
-subAgent - Research, review through CI logs
-
-
-- Also come up with the list of best model that are best fit that specific role. [Do web research, get data from only legit sites. Do not spawn subAgents for this task]
-
-
-
-ROADMAP.md
-
--Phases of implementation plan. It should have iterative improvement and refinement of features and workflows... with granular details 
-
-
-In the Agent Orchestration workflow, the main agent has to write code here after (No coder Agent). Do not write instructions like you will have to write code, blah blah blah. keep it short and simple and remove Coder Agent from AGENTS.md. 
 
 
 -----------------
@@ -683,3 +610,18 @@ WinUSB/libusb driver installed.
 
 
 - Can we achieve ADB connection wirelessly?
+
+
+
+## Bluetooth Mode
+Bluetooth mode isn't connecting at all, it's showing connected for a second and then showing connecting... 
+
+---
+
+Bluetooth mode, USB ADB, USB (Tethering) is not connecting. Create an e2e workflow in CI and test these, set trigger as workflow dispatch
+
+## Wifi Hotspot
+- working very well
+
+
+Display 1: 1920x1080 (primary)
