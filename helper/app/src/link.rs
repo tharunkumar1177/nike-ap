@@ -105,7 +105,7 @@ enum End {
     Local,
     /// Phone said Bye or closed the socket.
     Closed,
-    /// The socket closed before any frame arrived. The phone app always answers Hello, so this
+    /// The socket closed or was reset before any frame arrived. The phone app always answers Hello, so this
     /// means something between the helper and the app accepted and dropped the connection.
     Unanswered,
     /// Nothing received within the link timeout.
