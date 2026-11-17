@@ -264,6 +264,7 @@ Start a new chat (/clear or /new in the CLI)
 
 
 
+
 The agent finds the library's ID, then pulls the relevant docs into its context.
 
 **Name the library directly** to skip the lookup step. Use its ID, written as `/owner/repo`:
@@ -625,3 +626,72 @@ Bluetooth mode, USB ADB, USB (Tethering) is not connecting. Create an e2e workfl
 
 
 Display 1: 1920x1080 (primary)
+
+
+
+
+
+
+---
+
+
+blueprint split/ edit ask approval
+commands/ - cur ig
+
+can you read whole file with rg --no-ignore?
+
+Layout Zoom in and out for pen'npad.
+
+Do not directly put any value from the decompiled code to our app
+
+Pen - haptics, the ink trail, and the trackpad surface view
+
+what are the ways that would make this app vulnerable
+
+
+------------------
+
+
+--trailer "Co-authored-by: Cursor <cursoragent@cursor.com>"
+
+record non ob logic, edge cases, things we get it right thrg trial and error - Behav, charac
+
+injector, synthetic pen?
+
+Architect and optimization
+
+remote NDIS adapter, NCM-based devices
+Other possibilities are that Windows never created an RNDIS adapter, a driver problem, or that the adapter has no gateway.
+---
+
+Still to verify These need a Galaxy S Ultra and a Windows PC:
+
+S Pen tilt reporting.
+The 80 ms pen-leave delay.
+Whether the helper avoids a firewall prompt.
+Pairing with real computers over Bluetooth.
+
+
+Toggle for USB ADB, thethering, ....(for user's daily use)
+
+
+
+Trailing timing: default (current value) and a custom value (input field)
+
+Remove Device name and settings icon in fullscreen pen mode @ wireframe
+
+Remove the Mouse icon in the middle and make the text "Draw with S pen..." transcluent and move it to bottom right of the Pen canvas
+
+
+ADB Over linked network
+
+Custom hardware (...84504..)
+
+USB ADB works fine 
+Wifi Hotspot works fine
+USB tethering doesn't working
+
+
+doesn't points to VPN or security software?
+
+
