@@ -3,9 +3,11 @@ package dev.padlink.transport.bt
 
 import android.Manifest
 import android.annotation.SuppressLint
+import android.app.Activity
 import android.bluetooth.BluetoothAdapter
 import android.bluetooth.BluetoothDevice
 import android.bluetooth.BluetoothManager
+import android.content.ActivityNotFoundException
 import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
@@ -65,6 +67,39 @@ object BluetoothSupport {
     } catch (_: SecurityException) {
         device.address
     }
+
+    /** This phone's Bluetooth name as computers list it, falling back to the model name. */
+    @SuppressLint("MissingPermission")
+    fun localName(context: Context): String {
+        val name = try {
+            adapter(context)?.takeIf { hasConnectPermission(context) }?.name
+        } catch (_: SecurityException) {
+            null
+        }
+        return name?.takeIf { it.isNotBlank() } ?: Build.MODEL
+    }
+
+    /**
+     * Asks the user to make the phone discoverable so a computer can pair with it from its own
+     * Bluetooth settings while the HID record is registered. Returns false when the request cannot be shown.
+     */
+    fun requestDiscoverable(context: Context): Boolean {
+        if (!hasAdvertisePermission(context)) return false
+        val intent = Intent(BluetoothAdapter.ACTION_REQUEST_DISCOVERABLE)
+            .putExtra(BluetoothAdapter.EXTRA_DISCOVERABLE_DURATION, DISCOVERABLE_SECONDS)
+        if (context !is Activity) intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+        return try {
+            context.startActivity(intent)
+            true
+        } catch (_: ActivityNotFoundException) {
+            false
+        } catch (_: SecurityException) {
+            false
+        }
+    }
+
+    /** How long the phone stays discoverable after a pair-again request. */
+    private const val DISCOVERABLE_SECONDS = 180
 
     /** Resolves an address to a device, or null when invalid. */
     fun device(context: Context, address: String?): BluetoothDevice? {

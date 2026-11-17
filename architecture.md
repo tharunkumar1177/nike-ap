@@ -126,7 +126,7 @@ Every transport publishes one `LinkState`:
 
 ### Settings contract
 
-Settings are one `SharedPreferences` file named `settings`, owned by `android/app/src/main/kotlin/dev/padlink/settings/SettingsStore.kt`. Keys inherited from the original app keep their names and defaults:
+Settings are one `SharedPreferences` file named `settings`, owned by `android/app/src/main/kotlin/dev/padlink/settings/SettingsStore.kt`. Keys and defaults:
 
 | Key | Type | Default |
 |---|---|---|

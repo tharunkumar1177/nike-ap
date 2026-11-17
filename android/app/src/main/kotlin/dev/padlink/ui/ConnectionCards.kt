@@ -34,19 +34,26 @@ import dev.padlink.transport.LinkIssue
 import dev.padlink.transport.LinkState
 import dev.padlink.transport.LinkStatus
 import dev.padlink.transport.PairingRequest
+import dev.padlink.transport.bt.BluetoothSupport
 
 /** Action a guidance card offers. */
-private enum class CardAction { RETRY, BLUETOOTH_SETTINGS, PERMISSIONS, USE_BLE, TETHER_SETTINGS }
+private enum class CardAction { RETRY, PAIR_AGAIN, BLUETOOTH_SETTINGS, PERMISSIONS, USE_BLE, TETHER_SETTINGS }
 
-/** Content of one guidance card. */
-private data class Guidance(@StringRes val title: Int, @StringRes val body: Int, val actions: List<CardAction>)
+/** Content of one guidance card; [namesPhone] bodies take this phone's Bluetooth name as their argument. */
+private data class Guidance(
+    @StringRes val title: Int,
+    @StringRes val body: Int,
+    val actions: List<CardAction>,
+    val namesPhone: Boolean = false,
+)
 
 /** Chooses guidance for the current link, or null when everything is fine. */
 private fun guidanceFor(link: LinkState, connection: ConnectionSettings): Guidance? = when (link.status) {
     LinkStatus.CONNECTED, LinkStatus.PAIRING_REQUEST -> null
     LinkStatus.PROFILE_NOT_CONNECTED -> Guidance(
         R.string.card_profile_title, R.string.card_profile_body,
-        listOf(CardAction.RETRY, CardAction.BLUETOOTH_SETTINGS),
+        listOf(CardAction.PAIR_AGAIN, CardAction.RETRY),
+        namesPhone = true,
     )
     LinkStatus.DISCONNECTED -> Guidance(
         R.string.card_disconnected_title, R.string.card_disconnected_body, listOf(CardAction.RETRY),
@@ -126,7 +133,12 @@ fun ConnectionInfoCard(
     ) {
         Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
             Text(stringResource(guidance.title), style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
-            Text(stringResource(guidance.body), style = MaterialTheme.typography.bodyMedium)
+            val body = if (guidance.namesPhone) {
+                stringResource(guidance.body, BluetoothSupport.localName(context))
+            } else {
+                stringResource(guidance.body)
+            }
+            Text(body, style = MaterialTheme.typography.bodyMedium)
             link.listenAddress?.takeIf { link.issue == LinkIssue.WAITING_FOR_HELPER }?.let { address ->
                 Text(stringResource(R.string.hotspot_address, address), style = MaterialTheme.typography.bodySmall)
             }
@@ -151,6 +163,9 @@ fun ConnectionInfoCard(
                         TextButton(onClick = {
                             when (action) {
                                 CardAction.RETRY -> onRetry()
+                                CardAction.PAIR_AGAIN -> if (!BluetoothSupport.requestDiscoverable(context)) {
+                                    openSettings(context, Settings.ACTION_BLUETOOTH_SETTINGS)
+                                }
                                 CardAction.BLUETOOTH_SETTINGS -> openSettings(context, Settings.ACTION_BLUETOOTH_SETTINGS)
                                 CardAction.PERMISSIONS -> onRequestPermissions()
                                 CardAction.USE_BLE -> onUseBle()
@@ -161,6 +176,7 @@ fun ConnectionInfoCard(
                                 stringResource(
                                     when (action) {
                                         CardAction.RETRY -> R.string.action_connect
+                                        CardAction.PAIR_AGAIN -> R.string.action_pair_again
                                         CardAction.BLUETOOTH_SETTINGS -> R.string.action_bluetooth_settings
                                         CardAction.PERMISSIONS -> R.string.action_grant
                                         CardAction.USE_BLE -> R.string.action_use_ble

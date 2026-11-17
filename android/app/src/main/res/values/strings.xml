@@ -34,8 +34,8 @@
     <string name="button_right">Right</string>
 
     <!-- Guidance cards -->
-    <string name="card_profile_title">Bluetooth connection needs update</string>
-    <string name="card_profile_body">Your computer is connected over Bluetooth but has not enabled PadLink as a mouse. Tap Connect. If that fails, remove PadLink from the computer\'s Bluetooth devices and pair again.</string>
+    <string name="card_profile_title">Pair this phone with the computer again</string>
+    <string name="card_profile_body">The computer is connected to this phone over Bluetooth but refuses it as a mouse. This happens when they were paired before PadLink was running, so the computer installed no mouse driver. 1. On the computer, open Bluetooth devices and remove \"%1$s\". 2. Tap Pair again here. 3. On the computer, choose Add device, then Bluetooth, then \"%1$s\", and confirm the code on both screens.</string>
     <string name="card_disconnected_title">Computer not reachable</string>
     <string name="card_disconnected_body">Make sure the computer is on, in range, and has Bluetooth enabled. PadLink keeps retrying.</string>
     <string name="card_no_target_title">Choose a computer</string>
@@ -77,6 +77,7 @@
 
     <!-- Card actions -->
     <string name="action_connect">Connect</string>
+    <string name="action_pair_again">Pair again</string>
     <string name="action_bluetooth_settings">Bluetooth settings</string>
     <string name="action_grant">Grant</string>
     <string name="action_use_ble">Use Bluetooth LE</string>
