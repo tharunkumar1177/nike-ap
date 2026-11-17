@@ -64,6 +64,8 @@
     <string name="card_bt_unsupported_body">This device has no Bluetooth. Use one of the USB or Wi-Fi modes instead.</string>
     <string name="card_hid_title">Bluetooth mouse mode unavailable</string>
     <string name="card_hid_body">This phone did not allow PadLink to register as a Classic Bluetooth mouse. Another app may be using it. Bluetooth Low Energy mode usually works instead.</string>
+    <string name="card_hid_lost_title">Bluetooth mouse mode was taken over</string>
+    <string name="card_hid_lost_body">Another app, such as a different Bluetooth keyboard or mouse app, took this phone\'s Bluetooth mouse role, or Bluetooth restarted. Close or uninstall that app. PadLink keeps trying to take the role back.</string>
     <string name="card_ble_title">Bluetooth LE advertising failed</string>
     <string name="card_ble_body">The phone could not advertise PadLink over Bluetooth Low Energy. Turn Bluetooth off and on, then tap Connect.</string>
     <string name="card_tether_off_title">USB tethering is off</string>

@@ -56,10 +56,14 @@ class TransportRouter(private val context: Context, private val settings: Settin
         _state.value = LinkState.IDLE
     }
 
-    /** Rebuilds the active transport, for example after permissions were granted. */
+    /**
+     * Rebuilds the active transport after permissions changed, but only when it has failed: a needless
+     * rebuild tears down a working Classic registration and races the next one.
+     */
     fun restart() {
         val connection = settings.settings.value.connection
         if (settingsJob == null) return
+        if (current != null && _state.value.status != LinkStatus.UNAVAILABLE) return
         classicUnavailable = false
         switchTo(connection)
     }

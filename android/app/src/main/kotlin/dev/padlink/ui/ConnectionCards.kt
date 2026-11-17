@@ -78,6 +78,9 @@ private fun guidanceFor(link: LinkState, connection: ConnectionSettings): Guidan
             R.string.card_hid_title, R.string.card_hid_body,
             if (connection.btMode == BtMode.CLASSIC) listOf(CardAction.USE_BLE, CardAction.RETRY) else listOf(CardAction.RETRY),
         )
+        LinkIssue.HID_PROFILE_LOST -> Guidance(
+            R.string.card_hid_lost_title, R.string.card_hid_lost_body, listOf(CardAction.RETRY),
+        )
         LinkIssue.BLE_ADVERTISING_FAILED -> Guidance(
             R.string.card_ble_title, R.string.card_ble_body, listOf(CardAction.RETRY),
         )

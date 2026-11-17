@@ -24,6 +24,8 @@ enum class LinkIssue {
     PERMISSION_MISSING,
     HID_PROFILE_UNAVAILABLE,
     HID_REGISTRATION_FAILED,
+    /** Classic HID worked in this session, then the registration or profile went away; retrying, never swapped for BLE. */
+    HID_PROFILE_LOST,
     BLE_ADVERTISING_FAILED,
     WAITING_FOR_HELPER,
     TETHER_OFF,

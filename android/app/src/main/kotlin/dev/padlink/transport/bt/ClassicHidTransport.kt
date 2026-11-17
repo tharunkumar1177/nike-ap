@@ -11,6 +11,7 @@ import android.bluetooth.BluetoothProfile
 import android.content.Context
 import android.os.Handler
 import android.os.Looper
+import android.util.Log
 import dev.padlink.hid.HidDescriptor
 import dev.padlink.hid.HidDescriptorParser
 import dev.padlink.hid.ReportEncoder
@@ -52,6 +53,9 @@ class ClassicHidTransport(
 
     private var hid: BluetoothHidDevice? = null
     private var registered = false
+    private var registerPending = false
+    private var everRegistered = false
+    private var registerAttempts = 0
     private var running = false
     private var aclUp = false
     private var target: BluetoothDevice? = null
@@ -59,16 +63,27 @@ class ClassicHidTransport(
     @Volatile
     private var connected: BluetoothDevice? = null
 
-    private val proxyTimeout = Runnable { fail(LinkIssue.HID_PROFILE_UNAVAILABLE) }
+    private val proxyTimeout = Runnable {
+        Log.w(TAG, "HID Device profile proxy did not arrive")
+        fail(profileIssue(LinkIssue.HID_PROFILE_UNAVAILABLE))
+        if (everRegistered) main.postDelayed(restartProfile, RETRY_MS)
+    }
     private val profileCheck = Runnable { checkProfileAfterConnect() }
     private val retryConnect = Runnable { connectTarget() }
+    private val retryRegister = Runnable { register() }
+    private val registerTimeout = Runnable {
+        Log.w(TAG, "no registration result from the HID Device profile")
+        registerPending = false
+        registrationFailed()
+    }
+    private val restartProfile = Runnable { if (running && hid == null) begin() }
 
     private val profileListener = object : BluetoothProfile.ServiceListener {
         /** Receives the HID Device proxy and registers the app. */
         override fun onServiceConnected(profile: Int, proxy: BluetoothProfile) {
             main.post {
                 main.removeCallbacks(proxyTimeout)
-                if (!running) {
+                if (!running || (hid != null && hid !== proxy)) {
                     adapter?.closeProfileProxy(BluetoothProfile.HID_DEVICE, proxy)
                     return@post
                 }
@@ -77,13 +92,24 @@ class ClassicHidTransport(
             }
         }
 
-        /** The Bluetooth process restarted; the registration is gone. */
+        /** The Bluetooth process restarted; the registration is gone, so ask for the proxy again. */
         override fun onServiceDisconnected(profile: Int) {
             main.post {
+                Log.w(TAG, "HID Device profile service disconnected")
                 hid = null
                 registered = false
+                registerPending = false
                 connected = null
-                if (running) fail(LinkIssue.HID_PROFILE_UNAVAILABLE)
+                outbox.clear()
+                main.removeCallbacks(retryRegister)
+                main.removeCallbacks(registerTimeout)
+                if (!running) return@post
+                if (everRegistered) {
+                    setState(LinkStatus.CONNECTING)
+                    main.postDelayed(restartProfile, RETRY_MS)
+                } else {
+                    fail(LinkIssue.HID_PROFILE_UNAVAILABLE)
+                }
             }
         }
     }
@@ -134,7 +160,7 @@ class ClassicHidTransport(
         val adapter = adapter ?: return fail(LinkIssue.BLUETOOTH_UNSUPPORTED)
         if (!BluetoothSupport.hasConnectPermission(context)) return fail(LinkIssue.PERMISSION_MISSING)
         if (!adapter.isEnabled) return fail(LinkIssue.BLUETOOTH_OFF)
-        target = BluetoothSupport.device(context, targetAddress)
+        if (target == null) target = BluetoothSupport.device(context, targetAddress)
         setState(LinkStatus.CONNECTING)
         if (!adapter.getProfileProxy(context, profileListener, BluetoothProfile.HID_DEVICE)) {
             return fail(LinkIssue.HID_PROFILE_UNAVAILABLE)
@@ -144,36 +170,84 @@ class ClassicHidTransport(
 
     /** Registers the SDP record and descriptor with the profile. */
     private fun register() {
+        main.removeCallbacks(retryRegister)
+        if (!running || registered || registerPending) return
         val proxy = hid ?: return
         val sdp = BluetoothHidDeviceAppSdpSettings(
             SDP_NAME, SDP_DESCRIPTION, SDP_PROVIDER, HidDescriptor.SUBCLASS_COMBO, HidDescriptor.DESCRIPTOR,
+        )
+        val qosIn = BluetoothHidDeviceAppQosSettings(
+            BluetoothHidDeviceAppQosSettings.SERVICE_BEST_EFFORT, 0, 0, 0, -1, -1,
         )
         val qosOut = BluetoothHidDeviceAppQosSettings(
             BluetoothHidDeviceAppQosSettings.SERVICE_BEST_EFFORT, 800, 32, 2000, -1, -1,
         )
         val ok = try {
-            proxy.registerApp(sdp, null, qosOut, callbackExecutor, hidCallback)
+            proxy.registerApp(sdp, qosIn, qosOut, callbackExecutor, hidCallback)
         } catch (_: SecurityException) {
             false
         }
-        if (!ok) fail(LinkIssue.HID_REGISTRATION_FAILED)
+        Log.i(TAG, "registerApp attempt ${registerAttempts + 1}: $ok")
+        if (ok) {
+            registerPending = true
+            main.postDelayed(registerTimeout, REGISTER_RESULT_MS)
+        } else {
+            registrationFailed()
+        }
     }
 
-    /** Handles registration changes; losing registration to another app is a failure. */
+    /**
+     * Retries a failed or lost registration. A transport that just stopped releases the profile
+     * asynchronously, so early attempts can fail; only a transport that never registered gives up.
+     */
+    private fun registrationFailed() {
+        if (!running) return
+        registerAttempts++
+        try {
+            hid?.unregisterApp()
+        } catch (_: SecurityException) {
+            // Permission revoked; the next attempt reports it.
+        }
+        when {
+            registerAttempts < MAX_REGISTER_ATTEMPTS -> main.postDelayed(retryRegister, REGISTER_RETRY_MS)
+            everRegistered -> {
+                fail(LinkIssue.HID_PROFILE_LOST)
+                main.postDelayed(retryRegister, RETRY_MS)
+            }
+            else -> fail(LinkIssue.HID_REGISTRATION_FAILED)
+        }
+    }
+
+    /** Handles registration results and losses; the system may deliver a stale loss from a previous owner. */
     private fun onRegistration(plugged: BluetoothDevice?, isRegistered: Boolean) {
         if (!running) return
-        val wasRegistered = registered
-        registered = isRegistered
-        when {
-            isRegistered && !wasRegistered -> {
+        Log.i(TAG, "app status: registered=$isRegistered plugged=${plugged?.address}")
+        main.removeCallbacks(registerTimeout)
+        val wasPending = registerPending
+        registerPending = false
+        if (isRegistered) {
+            if (registered) return
+            registered = true
+            everRegistered = true
+            registerAttempts = 0
+            val proxy = hid
+            val alreadyConnected = plugged?.takeIf { connectionState(it) == BluetoothProfile.STATE_CONNECTED }
+                ?: proxy?.let { connectedDevices(it).firstOrNull() }
+            if (alreadyConnected != null) {
+                onHidConnection(alreadyConnected, BluetoothProfile.STATE_CONNECTED)
+            } else {
                 if (target == null && plugged != null) target = plugged
                 connectTarget()
             }
-            !isRegistered -> {
-                connected = null
-                fail(LinkIssue.HID_REGISTRATION_FAILED)
-            }
+            return
         }
+        if (!registered && !wasPending) return
+        registered = false
+        connected = null
+        outbox.clear()
+        main.removeCallbacks(retryConnect)
+        main.removeCallbacks(profileCheck)
+        registrationFailed()
     }
 
     /** Connects to the target host, or waits for any host to connect when none is selected. */
@@ -183,14 +257,40 @@ class ClassicHidTransport(
         if (!running || !registered) return
         if (connected != null) return
         val device = target ?: return setState(LinkStatus.IDLE, issue = LinkIssue.NO_TARGET)
+        when (connectionState(device)) {
+            BluetoothProfile.STATE_CONNECTED -> return onHidConnection(device, BluetoothProfile.STATE_CONNECTED)
+            BluetoothProfile.STATE_CONNECTING -> {
+                setState(LinkStatus.CONNECTING, BluetoothSupport.displayName(device))
+                main.postDelayed(profileCheck, PROFILE_CHECK_MS)
+                return
+            }
+        }
         setState(LinkStatus.CONNECTING, BluetoothSupport.displayName(device))
         val started = try {
             hid?.connect(device) == true
         } catch (_: SecurityException) {
             false
         }
+        Log.i(TAG, "connect ${device.address}: $started")
         main.postDelayed(profileCheck, if (started) PROFILE_CHECK_MS else RETRY_MS)
     }
+
+    /** HID profile connection state of [device], or disconnected when it cannot be read. */
+    private fun connectionState(device: BluetoothDevice): Int = try {
+        hid?.getConnectionState(device) ?: BluetoothProfile.STATE_DISCONNECTED
+    } catch (_: SecurityException) {
+        BluetoothProfile.STATE_DISCONNECTED
+    }
+
+    /** Hosts currently connected to the HID Device profile. */
+    private fun connectedDevices(proxy: BluetoothHidDevice): List<BluetoothDevice> = try {
+        proxy.connectedDevices.orEmpty()
+    } catch (_: SecurityException) {
+        emptyList()
+    }
+
+    /** Issue for a profile failure: after a successful registration the stack must not be swapped for BLE. */
+    private fun profileIssue(issue: LinkIssue): LinkIssue = if (everRegistered) LinkIssue.HID_PROFILE_LOST else issue
 
     /** After a connect attempt: report a missing HID profile, or retry. */
     private fun checkProfileAfterConnect() {
@@ -207,6 +307,7 @@ class ClassicHidTransport(
     /** Updates the connection from profile callbacks. */
     private fun onHidConnection(device: BluetoothDevice, state: Int) {
         if (!running) return
+        Log.i(TAG, "HID connection ${device.address}: state $state")
         when (state) {
             BluetoothProfile.STATE_CONNECTED -> {
                 main.removeCallbacks(profileCheck)
@@ -243,7 +344,15 @@ class ClassicHidTransport(
                 BluetoothAdapter.STATE_OFF -> {
                     connected = null
                     registered = false
+                    registerPending = false
+                    registerAttempts = 0
                     hid = null
+                    outbox.clear()
+                    main.removeCallbacks(retryRegister)
+                    main.removeCallbacks(registerTimeout)
+                    main.removeCallbacks(retryConnect)
+                    main.removeCallbacks(profileCheck)
+                    main.removeCallbacks(restartProfile)
                     fail(LinkIssue.BLUETOOTH_OFF)
                 }
             }
@@ -271,7 +380,12 @@ class ClassicHidTransport(
     override fun retry() {
         main.post {
             if (!running) return@post
-            if (hid == null) begin() else connectTarget()
+            registerAttempts = 0
+            when {
+                hid == null -> begin()
+                !registered -> register()
+                else -> connectTarget()
+            }
         }
     }
 
@@ -282,6 +396,9 @@ class ClassicHidTransport(
         main.removeCallbacks(proxyTimeout)
         main.removeCallbacks(profileCheck)
         main.removeCallbacks(retryConnect)
+        main.removeCallbacks(retryRegister)
+        main.removeCallbacks(registerTimeout)
+        main.removeCallbacks(restartProfile)
         events.unregister()
         outbox.close()
         val proxy = hid
@@ -291,13 +408,14 @@ class ClassicHidTransport(
                 proxy.sendReport(device, HidDescriptor.ID_MOUSE, ReportEncoder.idle(MOUSE_REPORT_SIZE))
                 proxy.sendReport(device, HidDescriptor.ID_PEN, ReportEncoder.pen(PenReport.OUT_OF_RANGE))
             }
-            if (proxy != null && registered) proxy.unregisterApp()
+            if (proxy != null && (registered || registerPending)) proxy.unregisterApp()
             if (proxy != null) adapter?.closeProfileProxy(BluetoothProfile.HID_DEVICE, proxy)
         } catch (_: SecurityException) {
             // Permission revoked while running; the system tears the registration down itself.
         }
         hid = null
         registered = false
+        registerPending = false
         connected = null
         callbackExecutor.shutdown()
         _state.value = LinkState(LinkStatus.IDLE, TransportStack.CLASSIC)
@@ -321,9 +439,13 @@ class ClassicHidTransport(
         const val SDP_NAME = "PadLink"
         const val SDP_DESCRIPTION = "Android trackpad and pen"
         const val SDP_PROVIDER = "PadLink"
+        private const val TAG = "PadLinkBt"
         private const val MOUSE_REPORT_SIZE = 5
         private const val PROXY_TIMEOUT_MS = 3_000L
         private const val PROFILE_CHECK_MS = 8_000L
         private const val RETRY_MS = 5_000L
+        private const val REGISTER_RETRY_MS = 600L
+        private const val REGISTER_RESULT_MS = 3_000L
+        private const val MAX_REGISTER_ATTEMPTS = 5
     }
 }
